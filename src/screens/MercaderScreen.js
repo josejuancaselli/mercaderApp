@@ -15,8 +15,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ConfettiCannon from 'react-native-confetti-cannon';
 import { useAuth } from '../auth/AuthContext';
-import { getUserProfile, addToBank } from '../storage/profile';
-import { getDay, saveDay, todayId } from '../storage/days';
+import { getUserProfile, addToBank, updateProfileFields } from '../storage/profile';
+import { getDay, saveDay, resetDay, todayId } from '../storage/days';
 import { setDayHistory } from '../storage/dayHistory';
 import { setWeightLog } from '../storage/weightLogs';
 import { getAllRecipes } from '../storage/recipes';
@@ -71,6 +71,7 @@ export default function MercaderScreen() {
   const [searchText, setSearchText] = useState('');
   const [selectedSearchItem, setSelectedSearchItem] = useState(null);
   const [searchAmount, setSearchAmount] = useState('100');
+  const [searchUnitMode, setSearchUnitMode] = useState('g'); // 'g' | 'unit'
   const [activeMeal, setActiveMeal] = useState('Desayuno');
   const [activeCategory, setActiveCategory] = useState(null);
   const [exerciseOpen, setExerciseOpen] = useState(false);
@@ -80,6 +81,8 @@ export default function MercaderScreen() {
   const [cardioMinutes, setCardioMinutes] = useState('30');
   const [confirmCloseOpen, setConfirmCloseOpen] = useState(false);
   const [closeWeightInput, setCloseWeightInput] = useState('');
+  const [pendingDay, setPendingDay] = useState(null); // { id, entries, exerciseBoostKcal, kcalConsumed } | null
+  const [pendingDayClosing, setPendingDayClosing] = useState(false);
   const scrollRef = useRef(null);
   const celebrationScale = useRef(new Animated.Value(0)).current;
   const [confettiReady, setConfettiReady] = useState(false);
@@ -116,13 +119,38 @@ export default function MercaderScreen() {
     setProfile(profileData);
     setDay(dayData);
     setFavorites(usage.filter((u) => u.kcalPer100g != null));
+
+    // Detección de día abandonado: si la última vez que se usó Mercader fue
+    // un día lógico distinto al de hoy, y ese día tenía algo cargado (comida
+    // o actividad física) que nunca se cerró con "Guardar en el Banco", ese
+    // ahorro se perdió en el aire — nadie lo acreditó ni lo archivó. Antes de
+    // mostrar el día de hoy, se detecta ese caso y se avisa con un modal en
+    // vez de dejarlo pasar en silencio.
+    const lastOpenDayId = profileData?.lastOpenDayId;
+    if (lastOpenDayId && lastOpenDayId !== today) {
+      const oldDay = await getDay(user.uid, lastOpenDayId);
+      const hadActivity = oldDay.entries.length > 0 || (oldDay.exerciseBoostKcal || 0) > 0;
+      if (hadActivity) {
+        setPendingDay({ id: lastOpenDayId, ...oldDay });
+      } else {
+        setPendingDay(null);
+        updateProfileFields(user.uid, { lastOpenDayId: today }).catch((e) => console.warn('No se pudo actualizar el puntero de día:', e.message));
+      }
+    } else {
+      setPendingDay(null);
+      if (lastOpenDayId !== today) {
+        updateProfileFields(user.uid, { lastOpenDayId: today }).catch((e) => console.warn('No se pudo actualizar el puntero de día:', e.message));
+      }
+    }
+
     // Los ingredientes propios (creados desde Recetas → "Mis ingredientes") se
-    // mezclan con los compartidos, igual que ya hace el armador de recetas. Solo
-    // entran los de cantidad variable ("por 100g/ml") — los de cantidad fija
-    // (ej. "1 barrita = 110 kcal") no tienen una tarifa por 100g y no encajan
-    // en la lógica de agregado rápido ni de búsqueda con gramaje libre.
+    // mezclan con los compartidos, igual que ya hace el armador de recetas.
+    // Se excluyen los que todavía no tienen una tasa por 100g/ml calculada
+    // (ingredientes viejos del formato "cantidad fija" anterior a este cambio,
+    // que no guardaban el peso de la unidad y no se pueden convertir solos —
+    // hay que volver a guardarlos desde Recetas con el nuevo formato).
     const personalAsShared = myIngredientsData
-      .filter((i) => i.kind === 'variable')
+      .filter((i) => i.kcalPer100)
       .map((i) => ({
         id: i.id,
         name: i.name,
@@ -130,6 +158,8 @@ export default function MercaderScreen() {
         emoji: '🧾',
         category: i.category || 'Otros',
         kcalPer100g: i.kcalPer100,
+        unitLabel: i.unitLabel || null,
+        unitAmount: i.unitAmount || null,
       }));
     setIngredients([...sharedIngredients, ...personalAsShared]);
     setRecipes(recipesData);
@@ -171,7 +201,8 @@ export default function MercaderScreen() {
   // esa vuelta de red — así no hay delay perceptible al usar la app.
 
   const quickAdd = (item) => {
-    const cost = Math.round(item.kcalPer100g);
+    const amountG = item.unitAmount || 100;
+    const cost = Math.round((item.kcalPer100g * amountG) / 100);
     if (cost > remaining) return;
     const ingredientKey = item.id || item.ingredientKey;
     const newEntry = {
@@ -181,7 +212,7 @@ export default function MercaderScreen() {
       emoji: item.emoji || '🍽️',
       brand: item.brand || null,
       kcalPer100g: item.kcalPer100g,
-      amountG: 100,
+      amountG,
       kcal: cost,
       mealType: activeMeal,
       addedAt: Date.now(),
@@ -241,12 +272,21 @@ export default function MercaderScreen() {
 
   const selectSearchItem = (item) => {
     setSelectedSearchItem(item);
-    setSearchAmount('100');
+    if (item.unitLabel) {
+      setSearchUnitMode('unit');
+      setSearchAmount('1');
+    } else {
+      setSearchUnitMode('g');
+      setSearchAmount('100');
+    }
     setSearchText('');
   };
 
   const searchAmountNum = parseFloat(searchAmount.replace(',', '.')) || 0;
-  const searchKcal = selectedSearchItem ? Math.round(selectedSearchItem.kcalPer100g * (searchAmountNum / 100)) : 0;
+  const searchAmountG = selectedSearchItem && searchUnitMode === 'unit'
+    ? searchAmountNum * (selectedSearchItem.unitAmount || 0)
+    : searchAmountNum;
+  const searchKcal = selectedSearchItem ? Math.round(selectedSearchItem.kcalPer100g * (searchAmountG / 100)) : 0;
 
   const addSearchItem = () => {
     if (!selectedSearchItem || searchAmountNum <= 0 || searchKcal > remaining) return;
@@ -258,7 +298,7 @@ export default function MercaderScreen() {
       emoji: selectedSearchItem.emoji || '🍽️',
       brand: selectedSearchItem.brand || null,
       kcalPer100g: selectedSearchItem.kcalPer100g,
-      amountG: searchAmountNum,
+      amountG: searchAmountG,
       kcal: searchKcal,
       mealType: activeMeal,
       addedAt: Date.now(),
@@ -275,6 +315,7 @@ export default function MercaderScreen() {
     }).catch((e) => console.warn('No se pudo registrar el uso:', e.message));
     setSelectedSearchItem(null);
     setSearchAmount('100');
+    setSearchUnitMode('g');
   };
 
   const handleRemoveEntry = (entryId) => {
@@ -377,6 +418,38 @@ export default function MercaderScreen() {
   const entriesForMeal = day.entries.filter((e) => e.mealType === activeMeal);
   const selectCategory = (cat) => {
     setActiveCategory((prev) => (prev === cat ? null : cat));
+  };
+
+  // El día pendiente se cierra con el mismo mantenimiento de HOY (no se guardó
+  // un mantenimiento histórico por día), igual que ya asume el resto de la app.
+  const pendingHardCap = pendingDay ? mantenimiento + (pendingDay.exerciseBoostKcal || 0) : 0;
+  const pendingLeftover = pendingDay ? Math.max(0, pendingHardCap - pendingDay.kcalConsumed) : 0;
+  const pendingByMeal = pendingDay
+    ? MEALS.map((meal) => ({ meal, entries: pendingDay.entries.filter((e) => e.mealType === meal) })).filter((g) => g.entries.length > 0)
+    : [];
+
+  const closePendingDay = async () => {
+    if (!pendingDay) return;
+    setPendingDayClosing(true);
+    const bankBefore = profile.bankKcal || 0;
+    const bankAfter = bankBefore + pendingLeftover;
+    try {
+      await setDayHistory(user.uid, pendingDay.id, {
+        kcalConsumed: pendingDay.kcalConsumed,
+        exerciseBoostKcal: pendingDay.exerciseBoostKcal || 0,
+        hardCap: pendingHardCap,
+        leftover: pendingLeftover,
+      });
+      await resetDay(user.uid, pendingDay.id);
+      await addToBank(user.uid, pendingLeftover);
+      await updateProfileFields(user.uid, { lastOpenDayId: today });
+      setProfile((p) => ({ ...p, bankKcal: bankAfter }));
+      setPendingDay(null);
+    } catch (e) {
+      console.warn('No se pudo cerrar el día pendiente:', e.message);
+    } finally {
+      setPendingDayClosing(false);
+    }
   };
 
   const favoriteItems = favorites.map((f) => ({
@@ -600,7 +673,8 @@ export default function MercaderScreen() {
                 <ScrollView style={styles.gridScroll} nestedScrollEnabled showsVerticalScrollIndicator>
                   <View style={styles.grid}>
                     {categoryItems.map((item) => {
-                      const cost = Math.round(item.kcalPer100g);
+                      const amountG = item.unitAmount || 100;
+                      const cost = Math.round((item.kcalPer100g * amountG) / 100);
                       const locked = cost > remaining;
                       return (
                         <Pressable
@@ -614,7 +688,9 @@ export default function MercaderScreen() {
                           {item.brand && (
                             <Text style={[styles.itemBrand, locked && styles.itemTextLocked]}>{item.brand}</Text>
                           )}
-                          <Text style={[styles.itemGrams, locked && styles.itemTextLocked]}>100 g</Text>
+                          <Text style={[styles.itemGrams, locked && styles.itemTextLocked]}>
+                            {item.unitLabel ? `1 ${item.unitLabel} (${amountG}g)` : '100 g'}
+                          </Text>
                           <Text style={[styles.itemPrice, locked && styles.itemPriceLocked]}>● {cost} kcal</Text>
                           {locked && (
                             <View style={styles.lockedOverlay}>
@@ -691,7 +767,11 @@ export default function MercaderScreen() {
                   <Text style={styles.searchResultName}>
                     {item.emoji || '🍽️'} {item.name}{item.brand ? ` · ${item.brand}` : ''}
                   </Text>
-                  <Text style={styles.searchResultKcal}>{Math.round(item.kcalPer100g)} kcal/100g</Text>
+                  <Text style={styles.searchResultKcal}>
+                    {item.unitLabel
+                      ? `1 ${item.unitLabel} · ${Math.round((item.kcalPer100g * item.unitAmount) / 100)} kcal`
+                      : `${Math.round(item.kcalPer100g)} kcal/100g`}
+                  </Text>
                 </Pressable>
               ))}
 
@@ -700,6 +780,26 @@ export default function MercaderScreen() {
                   <Text style={styles.quantityPanelName}>
                     {selectedSearchItem.emoji || '🍽️'} {selectedSearchItem.name}
                   </Text>
+                  {selectedSearchItem.unitLabel && (
+                    <View style={styles.exerciseTypeTabs}>
+                      <Pressable
+                        style={[styles.exerciseTypeTab, searchUnitMode === 'unit' && styles.exerciseTypeTabActive]}
+                        onPress={() => { setSearchUnitMode('unit'); setSearchAmount('1'); }}
+                      >
+                        <Text style={[styles.exerciseTypeTabText, searchUnitMode === 'unit' && styles.exerciseTypeTabTextActive]}>
+                          {selectedSearchItem.unitLabel.charAt(0).toUpperCase() + selectedSearchItem.unitLabel.slice(1)}s
+                        </Text>
+                      </Pressable>
+                      <Pressable
+                        style={[styles.exerciseTypeTab, searchUnitMode === 'g' && styles.exerciseTypeTabActive]}
+                        onPress={() => { setSearchUnitMode('g'); setSearchAmount('100'); }}
+                      >
+                        <Text style={[styles.exerciseTypeTabText, searchUnitMode === 'g' && styles.exerciseTypeTabTextActive]}>
+                          Gramos
+                        </Text>
+                      </Pressable>
+                    </View>
+                  )}
                   <View style={styles.quantityPanelRow}>
                     <TextInput
                       style={styles.quantityPanelInput}
@@ -707,9 +807,14 @@ export default function MercaderScreen() {
                       value={searchAmount}
                       onChangeText={setSearchAmount}
                     />
-                    <Text style={styles.quantityPanelUnit}>gramos</Text>
+                    <Text style={styles.quantityPanelUnit}>
+                      {searchUnitMode === 'unit' ? selectedSearchItem.unitLabel : 'gramos'}
+                    </Text>
                     <Text style={styles.quantityPanelKcal}>{searchKcal} kcal</Text>
                   </View>
+                  {searchUnitMode === 'unit' && searchAmountNum > 0 && (
+                    <Text style={styles.exerciseSourceNote}>≈ {Math.round(searchAmountG)} g en total</Text>
+                  )}
                   {searchKcal > remaining && (
                     <Text style={styles.quantityPanelWarning}>No alcanza con tus monedas restantes.</Text>
                   )}
@@ -732,6 +837,57 @@ export default function MercaderScreen() {
 
       </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* ---- Aviso de día anterior sin cerrar ---- */}
+      <Modal visible={!!pendingDay} transparent animationType="fade" onRequestClose={() => {}}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.confirmTitle}>Tu día del {pendingDay?.id} quedó sin cerrar</Text>
+            <Text style={styles.confirmBody}>
+              Abriste la app en un día nuevo sin cerrar el anterior, así que esas calorías todavía no se guardaron en el banco. Revisá qué habías cargado y cerralo cuando quieras.
+            </Text>
+
+            <ScrollView style={styles.pendingDayScroll} nestedScrollEnabled>
+              {pendingByMeal.length === 0 ? (
+                <Text style={styles.orderEmptyText}>Solo tenías actividad física cargada ese día, sin comidas.</Text>
+              ) : (
+                pendingByMeal.map(({ meal, entries }) => (
+                  <View key={meal} style={{ marginBottom: 10 }}>
+                    <Text style={styles.pendingMealTitle}>{meal.toUpperCase()}</Text>
+                    {entries.map((e) => (
+                      <View key={e.id} style={styles.pendingEntryRow}>
+                        <Text style={styles.pendingEntryName} numberOfLines={1}>{e.emoji || '🍽️'} {e.name}</Text>
+                        <Text style={styles.pendingEntryKcal}>{e.kcal} kcal</Text>
+                      </View>
+                    ))}
+                  </View>
+                ))
+              )}
+            </ScrollView>
+
+            <View style={styles.closeWeightBox}>
+              <Text style={styles.confirmBody}>
+                Total consumido: <Text style={styles.remaining}>{pendingDay?.kcalConsumed || 0} kcal</Text>
+                {'\n'}Se van a guardar <Text style={styles.remaining}>{pendingLeftover} kcal</Text> en el banco.
+              </Text>
+            </View>
+
+            <View style={styles.confirmActions}>
+              <Pressable
+                style={({ pressed }) => [styles.confirmAcceptBtn, { width: '100%' }, pressed && styles.pressedFeedback]}
+                onPress={closePendingDay}
+                disabled={pendingDayClosing}
+              >
+                {pendingDayClosing ? (
+                  <ActivityIndicator color={colors.bg} />
+                ) : (
+                  <Text style={styles.confirmAcceptText}>Cerrar y guardar {pendingLeftover} kcal</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* ---- Confirmación antes de cerrar el día ---- */}
       <Modal visible={confirmCloseOpen} transparent animationType="fade" onRequestClose={() => setConfirmCloseOpen(false)}>
@@ -1038,6 +1194,11 @@ const styles = StyleSheet.create({
   confirmTitle: { fontSize: 17.5, color: colors.goldBright, fontWeight: '700', marginBottom: 10 },
   confirmBody: { fontSize: 16.5, color: colors.parchment, lineHeight: 20, textAlign: 'center' },
   remaining: { color: colors.goldBright, fontWeight: 'bold' },
+  pendingDayScroll: { maxHeight: 220, width: '100%', marginTop: 14, borderTopWidth: 1, borderTopColor: colors.borderSoft, borderStyle: 'dashed', paddingTop: 10 },
+  pendingMealTitle: { fontSize: 10.5, letterSpacing: 0.6, color: colors.muted, marginBottom: 4 },
+  pendingEntryRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, paddingVertical: 4 },
+  pendingEntryName: { flex: 1, color: colors.parchment, fontSize: 14 },
+  pendingEntryKcal: { color: colors.gold, fontSize: 13 },
   closeWeightBox: { width: '100%', marginTop: 16, paddingTop: 14, borderTopWidth: 1, borderTopColor: colors.borderSoft, borderStyle: 'dashed', alignItems: 'center' },
   closeWeightLabel: { fontSize: 12.5, color: colors.muted, marginBottom: 8 },
   closeWeightRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },

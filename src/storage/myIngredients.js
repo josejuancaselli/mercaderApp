@@ -14,7 +14,9 @@ function myIngredientsCollection(uid) {
 
 /**
  * Crea un ingrediente propio nuevo.
- * ingredient: { name, kind: 'variable' | 'fixed', kcalPer100?, kcalTotal?, unit? }
+ * ingredient: { name, brand?, category, kcalPer100, unit: 'g'|'ml', unitLabel?, unitAmount? }
+ * unitLabel/unitAmount son opcionales: si están, permiten cargarlo por unidad
+ * (ej. "1 huevo" = 50g) además de por gramos/mililitros sueltos.
  * Devuelve el id generado por Firestore.
  */
 export async function addMyIngredient(uid, ingredient) {

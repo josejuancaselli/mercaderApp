@@ -179,14 +179,16 @@ export default function RecetasScreen() {
                     {ing.name}
                     {ing.brand ? <Text style={styles.cardNameBrand}> · {ing.brand}</Text> : null}
                   </Text>
-                  <Text style={styles.cardMeta}>{ing.kind === 'variable' ? 'Por cantidad' : 'Cantidad fija'}</Text>
+                  <Text style={styles.cardMeta}>
+                    {ing.unitLabel ? `1 ${ing.unitLabel} = ${ing.unitAmount}${ing.unit === 'ml' ? 'ml' : 'g'}` : `Por cantidad (${ing.unit === 'ml' ? 'ml' : 'g'})`}
+                  </Text>
                 </View>
                 <View style={styles.kcalPill}>
                   <Text style={styles.kcalPillText}>
-                    {ing.kind === 'variable' ? ing.kcalPer100 : ing.kcalTotal}
+                    {Math.round(ing.kcalPer100 || 0)}
                   </Text>
                   <Text style={styles.kcalPillUnit}>
-                    {ing.kind === 'variable' ? `/100${ing.unit || 'g'}` : 'kcal'}
+                    /100{ing.unit === 'ml' ? 'ml' : 'g'}
                   </Text>
                 </View>
                 <Pressable hitSlop={8} style={styles.cardDelete} onPress={() => handleDeleteIngredient(ing.id)}>
@@ -257,8 +259,17 @@ function RecipeEditor({ visible, onClose, recipe, sharedIngredients, myIngredien
 
   const allPickableIngredients = [
     ...myIngredients
-      .filter((i) => i.kind === 'variable')
-      .map((i) => ({ id: i.id, name: i.name, brand: i.brand, emoji: '🧾', kcalPer100g: i.kcalPer100, category: i.category || 'Otros' })),
+      .filter((i) => i.kcalPer100)
+      .map((i) => ({
+        id: i.id,
+        name: i.name,
+        brand: i.brand,
+        emoji: '🧾',
+        kcalPer100g: i.kcalPer100,
+        category: i.category || 'Otros',
+        unitLabel: i.unitLabel || null,
+        unitAmount: i.unitAmount || null,
+      })),
     ...sharedIngredients,
   ];
 
@@ -270,14 +281,15 @@ function RecipeEditor({ visible, onClose, recipe, sharedIngredients, myIngredien
   const categoryItems = allPickableIngredients.filter((i) => i.category === activeCategory);
 
   const quickAddIngredient = (item) => {
-    const kcal = Math.round(item.kcalPer100g);
+    const amountG = item.unitAmount || 100;
+    const kcal = Math.round((item.kcalPer100g * amountG) / 100);
     setIngredients((prev) => [
       ...prev,
       {
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         name: item.name,
         kcalPer100g: item.kcalPer100g,
-        amountG: 100,
+        amountG,
         kcal,
       },
     ]);
@@ -435,7 +447,11 @@ function RecipeEditor({ visible, onClose, recipe, sharedIngredients, myIngredien
                         <Text style={styles.searchResultName} numberOfLines={1}>
                           {item.emoji || '🍽️'} {item.name}{item.brand ? ` · ${item.brand}` : ''}
                         </Text>
-                        <Text style={styles.searchResultKcal}>{Math.round(item.kcalPer100g)}/100g</Text>
+                        <Text style={styles.searchResultKcal}>
+                          {item.unitLabel
+                            ? `1 ${item.unitLabel} · ${Math.round((item.kcalPer100g * item.unitAmount) / 100)} kcal`
+                            : `${Math.round(item.kcalPer100g)}/100g`}
+                        </Text>
                       </Pressable>
                     ))
                   )}
@@ -461,7 +477,11 @@ function RecipeEditor({ visible, onClose, recipe, sharedIngredients, myIngredien
                         <Text style={styles.itemEmoji}>{item.emoji || '🍽️'}</Text>
                         <Text style={styles.itemName}>{item.name}</Text>
                         {item.brand && <Text style={styles.itemBrand}>{item.brand}</Text>}
-                        <Text style={styles.itemPrice}>● {Math.round(item.kcalPer100g)} kcal / 100g</Text>
+                        <Text style={styles.itemPrice}>
+                          {item.unitLabel
+                            ? `● 1 ${item.unitLabel} · ${Math.round((item.kcalPer100g * item.unitAmount) / 100)} kcal`
+                            : `● ${Math.round(item.kcalPer100g)} kcal / 100g`}
+                        </Text>
                       </Pressable>
                     ))}
                   </View>
@@ -493,46 +513,63 @@ function IngredientEditor({ visible, onClose, ingredient, onSaved, uid }) {
   const [name, setName] = useState('');
   const [brand, setBrand] = useState('');
   const [category, setCategory] = useState(CATEGORIES[0]);
-  const [kind, setKind] = useState('variable'); // 'variable' | 'fixed'
+  const [mode, setMode] = useState('rate'); // 'rate' (por 100g/ml) | 'unit' (por unidad, ej. "1 huevo")
   const [unit, setUnit] = useState('g');
   const [kcalPer100, setKcalPer100] = useState('0');
-  const [desc, setDesc] = useState('');
-  const [kcalTotal, setKcalTotal] = useState('0');
+  const [unitLabel, setUnitLabel] = useState('');
+  const [unitAmount, setUnitAmount] = useState('');
+  const [unitKcal, setUnitKcal] = useState('0');
   const [saving, setSaving] = useState(false);
 
   const resetFrom = useCallback(() => {
     if (ingredient) {
+      const hasUnit = !!(ingredient.unitLabel && ingredient.unitAmount);
       setName(ingredient.name);
       setBrand(ingredient.brand || '');
       setCategory(ingredient.category || CATEGORIES[0]);
-      setKind(ingredient.kind);
       setUnit(ingredient.unit || 'g');
+      setMode(hasUnit ? 'unit' : 'rate');
       setKcalPer100(String(ingredient.kcalPer100 || 0));
-      setDesc(ingredient.desc || '');
-      setKcalTotal(String(ingredient.kcalTotal || 0));
+      setUnitLabel(ingredient.unitLabel || '');
+      setUnitAmount(ingredient.unitAmount ? String(ingredient.unitAmount) : '');
+      setUnitKcal(
+        hasUnit ? String(Math.round((ingredient.kcalPer100 * ingredient.unitAmount) / 100)) : '0'
+      );
     } else {
       setName('');
       setBrand('');
       setCategory(CATEGORIES[0]);
-      setKind('variable');
+      setMode('rate');
       setUnit('g');
       setKcalPer100('0');
-      setDesc('');
-      setKcalTotal('0');
+      setUnitLabel('');
+      setUnitAmount('');
+      setUnitKcal('0');
     }
   }, [ingredient]);
+
+  const unitAmountNum = parseFloat(unitAmount.replace(',', '.')) || 0;
+  const unitKcalNum = parseInt(unitKcal, 10) || 0;
+  const derivedRate = unitAmountNum > 0 ? Math.round((unitKcalNum / unitAmountNum) * 100) : 0;
 
   const handleSave = async () => {
     if (!name.trim()) return;
     let data;
-    if (kind === 'variable') {
+    if (mode === 'rate') {
       const val = parseInt(kcalPer100, 10) || 0;
       if (val <= 0) return;
-      data = { name: name.trim(), brand: brand.trim() || null, category, kind: 'variable', kcalPer100: val, unit };
+      data = { name: name.trim(), brand: brand.trim() || null, category, kcalPer100: val, unit, unitLabel: null, unitAmount: null };
     } else {
-      const val = parseInt(kcalTotal, 10) || 0;
-      if (val <= 0) return;
-      data = { name: name.trim(), brand: brand.trim() || null, category, kind: 'fixed', desc: desc.trim() || '1 unidad', kcalTotal: val };
+      if (!unitLabel.trim() || unitAmountNum <= 0 || unitKcalNum <= 0) return;
+      data = {
+        name: name.trim(),
+        brand: brand.trim() || null,
+        category,
+        kcalPer100: derivedRate,
+        unit,
+        unitLabel: unitLabel.trim(),
+        unitAmount: unitAmountNum,
+      };
     }
     setSaving(true);
     try {
@@ -599,15 +636,15 @@ function IngredientEditor({ visible, onClose, ingredient, onSaved, uid }) {
           </ScrollView>
 
           <View style={styles.modeTabs}>
-            <Pressable style={[styles.modeTab, kind === 'variable' && styles.modeTabActive]} onPress={() => setKind('variable')}>
-              <Text style={[styles.modeTabText, kind === 'variable' && styles.modeTabTextActive]}>Por cantidad</Text>
+            <Pressable style={[styles.modeTab, mode === 'rate' && styles.modeTabActive]} onPress={() => setMode('rate')}>
+              <Text style={[styles.modeTabText, mode === 'rate' && styles.modeTabTextActive]}>Por cantidad</Text>
             </Pressable>
-            <Pressable style={[styles.modeTab, kind === 'fixed' && styles.modeTabActive]} onPress={() => setKind('fixed')}>
-              <Text style={[styles.modeTabText, kind === 'fixed' && styles.modeTabTextActive]}>Cantidad fija</Text>
+            <Pressable style={[styles.modeTab, mode === 'unit' && styles.modeTabActive]} onPress={() => setMode('unit')}>
+              <Text style={[styles.modeTabText, mode === 'unit' && styles.modeTabTextActive]}>Por unidad</Text>
             </Pressable>
           </View>
 
-          {kind === 'variable' ? (
+          {mode === 'rate' ? (
             <>
               <View style={styles.manualRow}>
                 <Text style={styles.manualLabel}>Cada 100 gramos o mililitros tiene</Text>
@@ -630,24 +667,47 @@ function IngredientEditor({ visible, onClose, ingredient, onSaved, uid }) {
           ) : (
             <>
               <View style={styles.manualRow}>
-                <Text style={styles.manualLabel}>Descripción de la cantidad (ej: "1 paquete")</Text>
+                <Text style={styles.manualLabel}>Nombre de la unidad (ej: "huevo", "barrita", "cucharada")</Text>
                 <TextInput
                   style={styles.nameInput}
-                  placeholder="1 paquete"
+                  placeholder="unidad"
                   placeholderTextColor={colors.muted}
-                  value={desc}
-                  onChangeText={setDesc}
+                  value={unitLabel}
+                  onChangeText={setUnitLabel}
                 />
               </View>
               <View style={styles.manualRow}>
-                <Text style={styles.manualLabel}>Calorías de esa cantidad completa</Text>
+                <Text style={styles.manualLabel}>Cuánto pesa 1 {unitLabel.trim() || 'unidad'}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <TextInput
+                    style={[styles.manualInput, { flex: 1 }]}
+                    keyboardType="decimal-pad"
+                    value={unitAmount}
+                    onChangeText={setUnitAmount}
+                  />
+                  <Text style={styles.manualLabel}>{unit === 'ml' ? 'ml' : 'g'}</Text>
+                </View>
+              </View>
+              <View style={styles.modeTabs}>
+                <Pressable style={[styles.modeTab, unit === 'g' && styles.modeTabActive]} onPress={() => setUnit('g')}>
+                  <Text style={[styles.modeTabText, unit === 'g' && styles.modeTabTextActive]}>Gramos</Text>
+                </Pressable>
+                <Pressable style={[styles.modeTab, unit === 'ml' && styles.modeTabActive]} onPress={() => setUnit('ml')}>
+                  <Text style={[styles.modeTabText, unit === 'ml' && styles.modeTabTextActive]}>Mililitros</Text>
+                </Pressable>
+              </View>
+              <View style={styles.manualRow}>
+                <Text style={styles.manualLabel}>Calorías de esa {unitLabel.trim() || 'unidad'}</Text>
                 <TextInput
                   style={styles.manualInput}
                   keyboardType="number-pad"
-                  value={kcalTotal}
-                  onChangeText={setKcalTotal}
+                  value={unitKcal}
+                  onChangeText={setUnitKcal}
                 />
               </View>
+              {unitAmountNum > 0 && unitKcalNum > 0 && (
+                <Text style={styles.orderEmptyText}>≈ {derivedRate} kcal / 100{unit}</Text>
+              )}
             </>
           )}
         </ScrollView>

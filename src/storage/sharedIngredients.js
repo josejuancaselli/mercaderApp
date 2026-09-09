@@ -16,10 +16,13 @@ const COLLECTION = 'sharedIngredients';
  * Trae todos los ingredientes compartidos, y sincroniza contra la base curada
  * del código en dos sentidos:
  *  - Agrega lo que falte (comparando por nombre).
- *  - Corrige la categoría de lo que ya existe, si en el código quedó distinta
- *    (por ejemplo, cuando movemos un ingrediente de categoría más adelante).
- * Así, cualquier reorganización que hagamos en el código se refleja sola la
- * próxima vez que alguien abre Mercader, sin pasos manuales en Firestore.
+ *  - Corrige la categoría y los datos de unidad (unitLabel/unitAmount) de lo
+ *    que ya existe, si en el código quedaron distintos — por ejemplo, cuando
+ *    movemos un ingrediente de categoría, o le sumamos una unidad más
+ *    adelante (como "1 huevo = 50g").
+ * El kcalPer100g NUNCA se pisa acá: si ya existe en Firestore, se respeta
+ * (por si alguien lo corrigió a mano en la consola), y solo se usa el valor
+ * del código para los ingredientes que todavía no existen.
  */
 export async function getAllSharedIngredients() {
   const snap = await getDocs(collection(db, COLLECTION));
@@ -28,10 +31,18 @@ export async function getAllSharedIngredients() {
   const curatedByName = new Map(CURATED_INGREDIENTS.map((c) => [c.name, c]));
 
   const missing = CURATED_INGREDIENTS.filter((c) => !existingByName.has(c.name));
-  const toFix = existing.filter((e) => {
-    const curated = curatedByName.get(e.name);
-    return curated && curated.category !== e.category;
-  });
+  const toFix = existing
+    .map((e) => {
+      const curated = curatedByName.get(e.name);
+      if (!curated) return null;
+      const patch = {};
+      if (curated.category !== e.category) patch.category = curated.category;
+      if ((curated.unitLabel || null) !== (e.unitLabel || null)) patch.unitLabel = curated.unitLabel || null;
+      if ((curated.unitAmount || null) !== (e.unitAmount || null)) patch.unitAmount = curated.unitAmount || null;
+      if ((curated.unit || null) !== (e.unit || null)) patch.unit = curated.unit || null;
+      return Object.keys(patch).length > 0 ? { item: e, patch } : null;
+    })
+    .filter(Boolean);
 
   if (missing.length === 0 && toFix.length === 0) return existing;
 
@@ -42,10 +53,9 @@ export async function getAllSharedIngredients() {
     batch.set(ref, ingredient);
     added.push({ id: ref.id, ...ingredient });
   }
-  for (const item of toFix) {
-    const newCategory = curatedByName.get(item.name).category;
-    batch.update(doc(db, COLLECTION, item.id), { category: newCategory });
-    item.category = newCategory;
+  for (const { item, patch } of toFix) {
+    batch.update(doc(db, COLLECTION, item.id), patch);
+    Object.assign(item, patch);
   }
   await batch.commit();
 

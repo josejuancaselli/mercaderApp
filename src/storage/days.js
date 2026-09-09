@@ -1,12 +1,18 @@
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
-/** Devuelve el id del día de hoy en formato YYYY-MM-DD, en hora local. */
+/**
+ * Devuelve el id del "día lógico" actual en formato YYYY-MM-DD, en hora local.
+ * El corte del día no es a medianoche sino a las 4 AM: comer o cargar algo
+ * entre las 00:00 y las 03:59 sigue contando como el día anterior, para que
+ * una cena o merienda tarde no quede huérfana en un documento nuevo vacío.
+ */
 export function todayId() {
   const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
+  const shifted = new Date(now.getTime() - 4 * 60 * 60 * 1000);
+  const year = shifted.getFullYear();
+  const month = String(shifted.getMonth() + 1).padStart(2, '0');
+  const day = String(shifted.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 }
 
