@@ -1,0 +1,128 @@
+// Base de ingredientes curada por nosotros para arrancar la app.
+// Se sube UNA VEZ a Firestore (colección sharedIngredients) la primera vez que
+// alguien abre Mercader y esa colección está vacía — de ahí en más vive en
+// Firestore y cualquier usuario puede editarla, borrarla o sumar los suyos
+// (con marca, si aplica) desde la pestaña Ingredientes.
+export const CATEGORIES = ['Verduras', 'Frutas', 'Carnes', 'Fiambres', 'Lácteos', 'Otros'];
+
+export const CURATED_INGREDIENTS = [
+  // ---- Verduras (30) ----
+  { name: 'Cebolla', emoji: '🧅', category: 'Verduras', kcalPer100g: 40, brand: null },
+  { name: 'Zanahoria', emoji: '🥕', category: 'Verduras', kcalPer100g: 41, brand: null },
+  { name: 'Tomate', emoji: '🍅', category: 'Verduras', kcalPer100g: 18, brand: null },
+  { name: 'Lechuga', emoji: '🥬', category: 'Verduras', kcalPer100g: 15, brand: null },
+  { name: 'Espinaca', emoji: '🥬', category: 'Verduras', kcalPer100g: 23, brand: null },
+  { name: 'Remolacha', emoji: '🔴', category: 'Verduras', kcalPer100g: 43, brand: null },
+  { name: 'Brócoli', emoji: '🥦', category: 'Verduras', kcalPer100g: 34, brand: null },
+  { name: 'Pepino', emoji: '🥒', category: 'Verduras', kcalPer100g: 15, brand: null },
+  { name: 'Morrón', emoji: '🫑', category: 'Verduras', kcalPer100g: 31, brand: null },
+  { name: 'Ajo', emoji: '🧄', category: 'Verduras', kcalPer100g: 149, brand: null },
+  { name: 'Zapallo', emoji: '🎃', category: 'Verduras', kcalPer100g: 45, brand: null },
+  { name: 'Batata', emoji: '🍠', category: 'Verduras', kcalPer100g: 86, brand: null },
+  { name: 'Papa', emoji: '🥔', category: 'Verduras', kcalPer100g: 77, brand: null },
+  { name: 'Zapallito', emoji: '🥒', category: 'Verduras', kcalPer100g: 17, brand: null },
+  { name: 'Berenjena', emoji: '🍆', category: 'Verduras', kcalPer100g: 25, brand: null },
+  { name: 'Coliflor', emoji: '🥦', category: 'Verduras', kcalPer100g: 25, brand: null },
+  { name: 'Repollo', emoji: '🥬', category: 'Verduras', kcalPer100g: 25, brand: null },
+  { name: 'Repollitos de Bruselas', emoji: '🥬', category: 'Verduras', kcalPer100g: 43, brand: null },
+  { name: 'Acelga', emoji: '🥬', category: 'Verduras', kcalPer100g: 19, brand: null },
+  { name: 'Rúcula', emoji: '🥬', category: 'Verduras', kcalPer100g: 25, brand: null },
+  { name: 'Apio', emoji: '🥬', category: 'Verduras', kcalPer100g: 16, brand: null },
+  { name: 'Puerro', emoji: '🥬', category: 'Verduras', kcalPer100g: 61, brand: null },
+  { name: 'Choclo', emoji: '🌽', category: 'Verduras', kcalPer100g: 86, brand: null },
+  { name: 'Alcaucil', emoji: '🌿', category: 'Verduras', kcalPer100g: 47, brand: null },
+  { name: 'Hongos', emoji: '🍄', category: 'Verduras', kcalPer100g: 22, brand: null },
+  { name: 'Rabanito', emoji: '🔴', category: 'Verduras', kcalPer100g: 16, brand: null },
+  { name: 'Chaucha', emoji: '🌿', category: 'Verduras', kcalPer100g: 31, brand: null },
+  { name: 'Cebolla de verdeo', emoji: '🧅', category: 'Verduras', kcalPer100g: 32, brand: null },
+  { name: 'Espárragos', emoji: '🌿', category: 'Verduras', kcalPer100g: 20, brand: null },
+  { name: 'Palta', emoji: '🥑', category: 'Verduras', kcalPer100g: 160, brand: null },
+
+  // ---- Frutas (15) ----
+  { name: 'Banana', emoji: '🍌', category: 'Frutas', kcalPer100g: 89, brand: null },
+  { name: 'Manzana', emoji: '🍎', category: 'Frutas', kcalPer100g: 52, brand: null },
+  { name: 'Naranja', emoji: '🍊', category: 'Frutas', kcalPer100g: 47, brand: null },
+  { name: 'Pera', emoji: '🍐', category: 'Frutas', kcalPer100g: 57, brand: null },
+  { name: 'Uva', emoji: '🍇', category: 'Frutas', kcalPer100g: 69, brand: null },
+  { name: 'Frutilla', emoji: '🍓', category: 'Frutas', kcalPer100g: 32, brand: null },
+  { name: 'Durazno', emoji: '🍑', category: 'Frutas', kcalPer100g: 39, brand: null },
+  { name: 'Sandía', emoji: '🍉', category: 'Frutas', kcalPer100g: 30, brand: null },
+  { name: 'Melón', emoji: '🍈', category: 'Frutas', kcalPer100g: 34, brand: null },
+  { name: 'Mandarina', emoji: '🍊', category: 'Frutas', kcalPer100g: 53, brand: null },
+  { name: 'Kiwi', emoji: '🥝', category: 'Frutas', kcalPer100g: 61, brand: null },
+  { name: 'Ananá', emoji: '🍍', category: 'Frutas', kcalPer100g: 50, brand: null },
+  { name: 'Ciruela', emoji: '🍑', category: 'Frutas', kcalPer100g: 46, brand: null },
+  { name: 'Limón', emoji: '🍋', category: 'Frutas', kcalPer100g: 29, brand: null },
+  { name: 'Pomelo', emoji: '🍊', category: 'Frutas', kcalPer100g: 42, brand: null },
+
+  // ---- Carnes (10) ----
+  { name: 'Pechuga de pollo', emoji: '🍗', category: 'Carnes', kcalPer100g: 120, brand: null },
+  { name: 'Pata/muslo de pollo sin hueso', emoji: '🍗', category: 'Carnes', kcalPer100g: 130, brand: null },
+  { name: 'Carré de cerdo', emoji: '🥩', category: 'Carnes', kcalPer100g: 143, brand: null },
+  { name: 'Bife de vaca', emoji: '🥩', category: 'Carnes', kcalPer100g: 200, brand: null },
+  { name: 'Carne picada común', emoji: '🥩', category: 'Carnes', kcalPer100g: 254, brand: null },
+  { name: 'Milanesa de carne (sin pan)', emoji: '🥩', category: 'Carnes', kcalPer100g: 190, brand: null },
+  { name: 'Costeleta de cerdo', emoji: '🥩', category: 'Carnes', kcalPer100g: 231, brand: null },
+  { name: 'Merluza', emoji: '🐟', category: 'Carnes', kcalPer100g: 86, brand: null },
+  { name: 'Atún fresco', emoji: '🐟', category: 'Carnes', kcalPer100g: 132, brand: null },
+  { name: 'Cordero (pierna)', emoji: '🍖', category: 'Carnes', kcalPer100g: 294, brand: null },
+
+  // ---- Carnes: cortes y fiambres argentinos, agregados a pedido, con valores
+  // cruzados entre varias fuentes (Fitia, Yazio, FatSecret, tabla ARGENFOOD de
+  // la Universidad Nacional de Luján, argencarne.com.ar) — no vienen de USDA
+  // porque son cortes específicos de la carnicería argentina sin equivalente
+  // directo ahí.
+  { name: 'Jamón crudo', emoji: '🍖', category: 'Fiambres', kcalPer100g: 245, brand: null },
+  { name: 'Jamón cocido', emoji: '🍖', category: 'Fiambres', kcalPer100g: 120, brand: null },
+  { name: 'Jamón natural', emoji: '🍖', category: 'Fiambres', kcalPer100g: 105, brand: null },
+  { name: 'Salame', emoji: '🍖', category: 'Fiambres', kcalPer100g: 400, brand: null },
+  { name: 'Mortadela', emoji: '🍖', category: 'Fiambres', kcalPer100g: 310, brand: null },
+  { name: 'Bondiola (fiambre)', emoji: '🍖', category: 'Fiambres', kcalPer100g: 300, brand: null },
+  { name: 'Bife de chorizo', emoji: '🥩', category: 'Carnes', kcalPer100g: 145, brand: null },
+  { name: 'Ojo de bife (con ceja)', emoji: '🥩', category: 'Carnes', kcalPer100g: 220, brand: null },
+  { name: 'Nalga', emoji: '🥩', category: 'Carnes', kcalPer100g: 100, brand: null },
+  { name: 'Lomo', emoji: '🥩', category: 'Carnes', kcalPer100g: 116, brand: null },
+  { name: 'Peceto', emoji: '🥩', category: 'Carnes', kcalPer100g: 125, brand: null },
+  { name: 'Entraña', emoji: '🥩', category: 'Carnes', kcalPer100g: 205, brand: null },
+  { name: 'Vacío', emoji: '🥩', category: 'Carnes', kcalPer100g: 106, brand: null },
+  { name: 'Tira de asado', emoji: '🥩', category: 'Carnes', kcalPer100g: 250, brand: null },
+  { name: 'Hígado', emoji: '🍖', category: 'Carnes', kcalPer100g: 132, brand: null },
+  { name: 'Riñón', emoji: '🍖', category: 'Carnes', kcalPer100g: 137, brand: null },
+  { name: 'Molleja', emoji: '🍖', category: 'Carnes', kcalPer100g: 200, brand: null },
+  { name: 'Tapa de asado', emoji: '🥩', category: 'Carnes', kcalPer100g: 210, brand: null },
+  { name: 'Roast beef', emoji: '🥩', category: 'Carnes', kcalPer100g: 115, brand: null },
+  { name: 'Paleta', emoji: '🥩', category: 'Carnes', kcalPer100g: 106, brand: null },
+  { name: 'Matambre', emoji: '🥩', category: 'Carnes', kcalPer100g: 215, brand: null },
+  { name: 'Bondiola de cerdo', emoji: '🥩', category: 'Carnes', kcalPer100g: 260, brand: null },
+  { name: 'Matambre de cerdo', emoji: '🥩', category: 'Carnes', kcalPer100g: 214, brand: null },
+
+  // ---- Lácteos (varían mucho según marca, set chico de referencia) ----
+  { name: 'Leche entera', emoji: '🥛', category: 'Lácteos', kcalPer100g: 61, brand: null },
+  { name: 'Yogur natural', emoji: '🥛', category: 'Lácteos', kcalPer100g: 61, brand: null },
+  { name: 'Queso cremoso', emoji: '🧀', category: 'Lácteos', kcalPer100g: 300, brand: null },
+  { name: 'Queso rallado', emoji: '🧀', category: 'Lácteos', kcalPer100g: 400, brand: null },
+  { name: 'Manteca', emoji: '🧈', category: 'Lácteos', kcalPer100g: 717, brand: null },
+
+  // ---- Otros (harinas, legumbres, panificados, condimentos) ----
+  { name: 'Huevo', emoji: '🥚', category: 'Otros', kcalPer100g: 155, brand: null },
+  { name: 'Harina de trigo', emoji: '🌾', category: 'Otros', kcalPer100g: 364, brand: null },
+  { name: 'Harina integral', emoji: '🌾', category: 'Otros', kcalPer100g: 340, brand: null },
+  { name: 'Harina de maíz', emoji: '🌽', category: 'Otros', kcalPer100g: 365, brand: null },
+  { name: 'Azúcar', emoji: '🍬', category: 'Otros', kcalPer100g: 387, brand: null },
+  { name: 'Lentejas cocidas', emoji: '🟤', category: 'Otros', kcalPer100g: 116, brand: null },
+  { name: 'Garbanzos cocidos', emoji: '🟡', category: 'Otros', kcalPer100g: 164, brand: null },
+  { name: 'Porotos negros cocidos', emoji: '⚫', category: 'Otros', kcalPer100g: 132, brand: null },
+  { name: 'Porotos blancos cocidos', emoji: '⚪', category: 'Otros', kcalPer100g: 127, brand: null },
+  { name: 'Arvejas cocidas', emoji: '🟢', category: 'Otros', kcalPer100g: 84, brand: null },
+  { name: 'Soja cocida', emoji: '🟡', category: 'Otros', kcalPer100g: 173, brand: null },
+  { name: 'Pan blanco', emoji: '🍞', category: 'Otros', kcalPer100g: 265, brand: null },
+  { name: 'Pan de salvado', emoji: '🍞', category: 'Otros', kcalPer100g: 246, brand: null },
+  { name: 'Fideos cocidos', emoji: '🍝', category: 'Otros', kcalPer100g: 158, brand: null },
+  { name: 'Arroz blanco cocido', emoji: '🍚', category: 'Otros', kcalPer100g: 130, brand: null },
+  { name: 'Mayonesa', emoji: '🥫', category: 'Otros', kcalPer100g: 680, brand: null },
+  { name: 'Mostaza', emoji: '🥫', category: 'Otros', kcalPer100g: 66, brand: null },
+  { name: 'Ketchup', emoji: '🥫', category: 'Otros', kcalPer100g: 108, brand: null },
+  { name: 'Aceite', emoji: '🫒', category: 'Otros', kcalPer100g: 884, brand: null },
+  { name: 'Avena', emoji: '🌾', category: 'Otros', kcalPer100g: 389, brand: null },
+  { name: 'Pasta de maní', emoji: '🥜', category: 'Otros', kcalPer100g: 590, brand: null },
+];
