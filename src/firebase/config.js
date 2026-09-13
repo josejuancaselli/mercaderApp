@@ -1,5 +1,6 @@
 import { initializeApp } from 'firebase/app';
-import { initializeAuth, getReactNativePersistence } from 'firebase/auth';
+import { Platform } from 'react-native';
+import { initializeAuth, getReactNativePersistence, getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -14,8 +15,14 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
-export const auth = initializeAuth(app, {
-  persistence: getReactNativePersistence(AsyncStorage),
-});
+/**
+ * La persistencia de sesión depende de la plataforma: en el celular hace
+ * falta decirle explícitamente que use AsyncStorage (getReactNativePersistence),
+ * porque no existe el localStorage del navegador. En web, getAuth() ya usa
+ * localStorage por defecto, así que no hace falta configurar nada extra ahí.
+ */
+export const auth = Platform.OS === 'web'
+  ? getAuth(app)
+  : initializeAuth(app, { persistence: getReactNativePersistence(AsyncStorage) });
 
 export const db = getFirestore(app);
