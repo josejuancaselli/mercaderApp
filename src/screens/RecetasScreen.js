@@ -147,7 +147,9 @@ export default function RecetasScreen() {
                   <View style={{ flex: 1 }}>
                     <Text style={styles.cardName} numberOfLines={1}>{r.name}</Text>
                     <Text style={styles.cardMeta}>
-                      {r.mode === 'simple' ? 'Total manual' : `${r.ingredients?.length || 0} ingredientes`}
+                      {r.mode === 'simple'
+                        ? (r.totalWeightG ? `Total manual · ${r.totalWeightG} g` : 'Total manual')
+                        : `${r.ingredients?.length || 0} ingredientes`}
                     </Text>
                   </View>
                   <View style={styles.kcalPill}>
@@ -236,6 +238,7 @@ function RecipeEditor({ visible, onClose, recipe, sharedIngredients, myIngredien
   const [mode, setMode] = useState('detailed'); // 'detailed' | 'simple'
   const [ingredients, setIngredients] = useState([]);
   const [manualKcal, setManualKcal] = useState('0');
+  const [totalWeightG, setTotalWeightG] = useState(''); // solo modo 'simple'; opcional
   const [activeCategory, setActiveCategory] = useState(CATEGORIES[0]);
   const [searchText, setSearchText] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
@@ -247,11 +250,13 @@ function RecipeEditor({ visible, onClose, recipe, sharedIngredients, myIngredien
       setMode(recipe.mode);
       setIngredients(recipe.ingredients || []);
       setManualKcal(String(recipe.totalKcal || 0));
+      setTotalWeightG(recipe.totalWeightG ? String(recipe.totalWeightG) : '');
     } else {
       setName('');
       setMode('detailed');
       setIngredients([]);
       setManualKcal('0');
+      setTotalWeightG('');
     }
     setSearchText('');
     setActiveCategory(CATEGORIES[0]);
@@ -320,6 +325,10 @@ function RecipeEditor({ visible, onClose, recipe, sharedIngredients, myIngredien
       mode,
       ingredients: mode === 'detailed' ? ingredients : [],
       totalKcal: mode === 'simple' ? parseInt(manualKcal, 10) || 0 : sumKcal(ingredients),
+      // Peso total del lote, para poder repartirlo en porciones al agregarla a una comida.
+      // En modo 'detailed' se calcula solo (suma de amountG de los ingredientes) y no se
+      // guarda acá. En modo 'simple' es opcional: sin este dato la receta no es porcionable.
+      totalWeightG: mode === 'simple' ? (parseInt(totalWeightG, 10) || null) : null,
     };
     try {
       if (recipe) {
@@ -412,6 +421,20 @@ function RecipeEditor({ visible, onClose, recipe, sharedIngredients, myIngredien
                   value={manualKcal}
                   onChangeText={setManualKcal}
                 />
+                <Text style={[styles.manualLabel, { marginTop: 16 }]}>
+                  Peso total de la preparación (opcional)
+                </Text>
+                <TextInput
+                  style={styles.manualInput}
+                  keyboardType="number-pad"
+                  placeholder="Ej: 1000"
+                  placeholderTextColor={colors.muted}
+                  value={totalWeightG}
+                  onChangeText={setTotalWeightG}
+                />
+                <Text style={styles.manualHint}>
+                  Cargalo si cocinaste una porción grande (batch cooking) y querés repartirla en varias comidas más adelante. Sin este dato, la receta se agrega siempre completa.
+                </Text>
               </View>
             )}
           </View>
@@ -896,6 +919,7 @@ const styles = StyleSheet.create({
   manualRowNoBorder: {},
   manualLabel: { fontSize: 13, color: colors.muted, marginBottom: 6 },
   manualInput: { backgroundColor: colors.panel2, borderWidth: 1, borderColor: colors.borderSoft, borderRadius: 9, color: colors.parchment, fontSize: 22, textAlign: 'center', padding: 14 },
+  manualHint: { fontSize: 11.5, color: colors.muted, marginTop: 8, lineHeight: 16 },
 
   editorActions: { flexDirection: 'row', gap: 10, padding: 16, borderTopWidth: 1, borderTopColor: colors.borderSoft },
   editorBtnDelete: { flex: 1, minHeight: 46, borderRadius: 9, borderWidth: 1, borderColor: colors.danger, alignItems: 'center', justifyContent: 'center' },

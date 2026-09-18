@@ -244,6 +244,42 @@ export default function MercaderScreen() {
   const confirmQuantityModal = () => {
     if (!quantityModalItem || quantityModalAmountNum <= 0 || quantityModalKcal > remaining) return;
     const item = quantityModalItem;
+
+    if (item.isRecipe) {
+      const recipe = item.recipe;
+      const totalW = recipeTotalWeightG(recipe);
+      const ratio = quantityModalAmountG / totalW;
+      const newEntries = (!recipe.ingredients?.length)
+        ? [{
+            id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            name: recipe.name,
+            emoji: recipe.emoji || '🍽️',
+            recipeName: recipe.name,
+            amountG: Math.round(quantityModalAmountG),
+            kcal: quantityModalKcal,
+            mealType: activeMeal,
+            addedAt: Date.now(),
+          }]
+        : recipe.ingredients.map((ing, idx) => ({
+            id: `${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 6)}`,
+            name: ing.name,
+            emoji: recipe.emoji || '🍽️',
+            recipeName: recipe.name,
+            kcalPer100g: ing.kcalPer100g,
+            amountG: Math.round(ing.amountG * ratio),
+            kcal: Math.round(ing.kcal * ratio),
+            mealType: activeMeal,
+            addedAt: Date.now(),
+          }));
+      const entries = [...day.entries, ...newEntries];
+      const updated = { ...day, entries, kcalConsumed: sumKcal(entries) };
+      setDay(updated);
+      saveDay(user.uid, today, updated).catch((e) => console.warn('No se pudo guardar:', e.message));
+      setQuantityModalItem(null);
+      setQuantityModalAmount('');
+      return;
+    }
+
     const ingredientKey = item.id || item.ingredientKey;
     const newEntry = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -273,6 +309,33 @@ export default function MercaderScreen() {
 
   const recipeTotalKcal = (recipe) =>
     recipe.mode === 'simple' ? recipe.totalKcal || 0 : (recipe.ingredients || []).reduce((s, i) => s + i.kcal, 0);
+
+  // Peso total del lote: en 'detailed' se calcula solo (suma de los ingredientes);
+  // en 'simple' depende del campo opcional cargado en Recetas. Sin este dato la
+  // receta no es porcionable y se agrega siempre completa (ver addRecipeToMeal).
+  const recipeTotalWeightG = (recipe) => {
+    if (recipe.mode === 'simple') return recipe.totalWeightG || null;
+    const sum = (recipe.ingredients || []).reduce((s, i) => s + (i.amountG || 0), 0);
+    return sum > 0 ? sum : null;
+  };
+
+  // Abre el mismo modal de cantidad que usan los ingredientes de la grilla, pero
+  // cargado con la tasa kcal/100g del lote completo y prellenado con el peso total
+  // (a diferencia de los ingredientes, donde el input arranca vacío a propósito).
+  const openRecipeQuantityModal = (recipe) => {
+    const totalW = recipeTotalWeightG(recipe);
+    const totalKcalRecipe = recipeTotalKcal(recipe);
+    setQuantityModalItem({
+      isRecipe: true,
+      recipe,
+      name: recipe.name,
+      emoji: recipe.emoji || '🍽️',
+      unit: 'g',
+      kcalPer100g: totalW ? (totalKcalRecipe / totalW) * 100 : 0,
+    });
+    setQuantityModalUnitMode('g');
+    setQuantityModalAmount(totalW ? String(totalW) : '');
+  };
 
   const addRecipeToMeal = (recipe) => {
     const total = recipeTotalKcal(recipe);
@@ -761,17 +824,20 @@ export default function MercaderScreen() {
                 {recipes.map((recipe) => {
                   const total = recipeTotalKcal(recipe);
                   const locked = total > remaining;
+                  const scalable = !locked && !!recipeTotalWeightG(recipe);
                   return (
                     <Pressable
                       key={recipe.id}
                       style={({ pressed }) => [styles.item, locked && styles.itemLocked, pressed && styles.pressedFeedback]}
-                      onPress={() => addRecipeToMeal(recipe)}
+                      onPress={() => (scalable ? openRecipeQuantityModal(recipe) : addRecipeToMeal(recipe))}
                       disabled={locked}
                     >
                       <Text style={[styles.itemEmoji, locked && styles.itemTextLocked]}>{recipe.emoji || '🍽️'}</Text>
                       <Text style={[styles.itemName, locked && styles.itemTextLocked]}>{recipe.name}</Text>
                       <Text style={[styles.itemGrams, locked && styles.itemTextLocked]}>
-                        {recipe.mode === 'simple' ? 'Total manual' : `${recipe.ingredients?.length || 0} ingredientes`}
+                        {recipe.mode === 'simple'
+                          ? (recipe.totalWeightG ? `${recipe.totalWeightG} g totales` : 'Total manual')
+                          : `${recipe.ingredients?.length || 0} ingredientes`}
                       </Text>
                       <Text style={[styles.itemPrice, locked && styles.itemPriceLocked]}>● {total} kcal</Text>
                       {locked && (
