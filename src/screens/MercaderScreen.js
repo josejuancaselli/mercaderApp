@@ -59,6 +59,30 @@ function calcMantenimiento(profile) {
   return Math.round(base * factor);
 }
 
+/**
+ * Cuánto de un ingrediente entra todavía con las monedas que quedan hoy.
+ * La "unidad de referencia" para el porcentaje tapado es la unidad natural
+ * del ingrediente (1 huevo, 1 cucharada) si la tiene, o 100g/ml si no —
+ * así la franja gris se calibra contra lo mismo que dice el texto.
+ */
+function affordInfo(item, remaining) {
+  const affordG = Math.max(0, (remaining / item.kcalPer100g) * 100);
+  const referenceG = item.unitAmount || 100;
+  const pctCovered = Math.max(0, Math.min(100, 100 - (affordG / referenceG) * 100));
+
+  let affordText;
+  if (item.unitLabel && item.unitAmount) {
+    const affordUnits = Math.floor(affordG / item.unitAmount);
+    affordText = affordUnits > 0
+      ? `Te alcanzan ~${affordUnits} ${item.unitLabel}${affordUnits === 1 ? '' : 's'}`
+      : (affordG > 0 ? `Te alcanza menos de 1 ${item.unitLabel}` : '');
+  } else {
+    affordText = affordG > 0 ? `Te alcanza para ~${Math.round(affordG)}${item.unit === 'ml' ? 'ml' : 'g'}` : '';
+  }
+
+  return { affordG, pctCovered, affordText, tight: affordG > 0 && affordG <= referenceG * 0.3 };
+}
+
 export default function MercaderScreen() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -70,8 +94,11 @@ export default function MercaderScreen() {
   const [activeSubTab, setActiveSubTab] = useState(null);
   const [searchText, setSearchText] = useState('');
   const [selectedSearchItem, setSelectedSearchItem] = useState(null);
-  const [searchAmount, setSearchAmount] = useState('100');
+  const [searchAmount, setSearchAmount] = useState('');
   const [searchUnitMode, setSearchUnitMode] = useState('g'); // 'g' | 'unit'
+  const [quantityModalItem, setQuantityModalItem] = useState(null);
+  const [quantityModalAmount, setQuantityModalAmount] = useState('');
+  const [quantityModalUnitMode, setQuantityModalUnitMode] = useState('g'); // 'g' | 'unit'
   const [activeMeal, setActiveMeal] = useState('Desayuno');
   const [activeCategory, setActiveCategory] = useState(null);
   const [exerciseOpen, setExerciseOpen] = useState(false);
@@ -200,10 +227,23 @@ export default function MercaderScreen() {
   // guardado en Firestore sale disparado de fondo, sin que el toque espere
   // esa vuelta de red — así no hay delay perceptible al usar la app.
 
-  const quickAdd = (item) => {
-    const amountG = item.unitAmount || 100;
-    const cost = Math.round((item.kcalPer100g * amountG) / 100);
-    if (cost > remaining) return;
+  const openQuantityModal = (item) => {
+    setQuantityModalItem(item);
+    setQuantityModalUnitMode(item.unitLabel ? 'unit' : 'g');
+    setQuantityModalAmount('');
+  };
+
+  const quantityModalAmountNum = parseFloat(quantityModalAmount.replace(',', '.')) || 0;
+  const quantityModalAmountG = quantityModalItem && quantityModalUnitMode === 'unit'
+    ? quantityModalAmountNum * (quantityModalItem.unitAmount || 0)
+    : quantityModalAmountNum;
+  const quantityModalKcal = quantityModalItem
+    ? Math.round(quantityModalItem.kcalPer100g * (quantityModalAmountG / 100))
+    : 0;
+
+  const confirmQuantityModal = () => {
+    if (!quantityModalItem || quantityModalAmountNum <= 0 || quantityModalKcal > remaining) return;
+    const item = quantityModalItem;
     const ingredientKey = item.id || item.ingredientKey;
     const newEntry = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -212,8 +252,8 @@ export default function MercaderScreen() {
       emoji: item.emoji || '🍽️',
       brand: item.brand || null,
       kcalPer100g: item.kcalPer100g,
-      amountG,
-      kcal: cost,
+      amountG: quantityModalAmountG,
+      kcal: quantityModalKcal,
       mealType: activeMeal,
       addedAt: Date.now(),
     };
@@ -227,6 +267,8 @@ export default function MercaderScreen() {
       kcalPer100g: item.kcalPer100g,
       source: 'shared',
     }).catch((e) => console.warn('No se pudo registrar el uso:', e.message));
+    setQuantityModalItem(null);
+    setQuantityModalAmount('');
   };
 
   const recipeTotalKcal = (recipe) =>
@@ -272,13 +314,8 @@ export default function MercaderScreen() {
 
   const selectSearchItem = (item) => {
     setSelectedSearchItem(item);
-    if (item.unitLabel) {
-      setSearchUnitMode('unit');
-      setSearchAmount('1');
-    } else {
-      setSearchUnitMode('g');
-      setSearchAmount('100');
-    }
+    setSearchUnitMode(item.unitLabel ? 'unit' : 'g');
+    setSearchAmount('');
     setSearchText('');
   };
 
@@ -314,7 +351,7 @@ export default function MercaderScreen() {
       source: 'shared',
     }).catch((e) => console.warn('No se pudo registrar el uso:', e.message));
     setSelectedSearchItem(null);
-    setSearchAmount('100');
+    setSearchAmount('');
     setSearchUnitMode('g');
   };
 
@@ -388,6 +425,7 @@ export default function MercaderScreen() {
     setProfile((p) => ({ ...p, bankKcal: bankAfter }));
     saveDay(user.uid, today, emptyDay).catch((e) => console.warn('No se pudo guardar:', e.message));
     addToBank(user.uid, leftover).catch((e) => console.warn('No se pudo actualizar el banco:', e.message));
+    updateProfileFields(user.uid, { lastOpenDayId: today }).catch((e) => console.warn('No se pudo actualizar el puntero de día:', e.message));
 
     if (milestone) {
       setCelebration({
@@ -673,28 +711,35 @@ export default function MercaderScreen() {
                 <ScrollView style={styles.gridScroll} nestedScrollEnabled showsVerticalScrollIndicator>
                   <View style={styles.grid}>
                     {categoryItems.map((item) => {
-                      const amountG = item.unitAmount || 100;
-                      const cost = Math.round((item.kcalPer100g * amountG) / 100);
-                      const locked = cost > remaining;
+                      const { pctCovered, affordText, tight } = affordInfo(item, remaining);
+                      const blocked = remaining <= 0;
                       return (
                         <Pressable
                           key={item.id}
-                          style={({ pressed }) => [styles.item, locked && styles.itemLocked, pressed && styles.pressedFeedback]}
-                          onPress={() => quickAdd(item)}
-                          disabled={locked}
+                          style={({ pressed }) => [styles.item, pressed && !blocked && styles.pressedFeedback]}
+                          onPress={() => openQuantityModal(item)}
+                          disabled={blocked}
                         >
-                          <Text style={[styles.itemEmoji, locked && styles.itemTextLocked]}>{item.emoji || '🍽️'}</Text>
-                          <Text style={[styles.itemName, locked && styles.itemTextLocked]}>{item.name}</Text>
-                          {item.brand && (
-                            <Text style={[styles.itemBrand, locked && styles.itemTextLocked]}>{item.brand}</Text>
+                          <View>
+                            <Text style={styles.itemEmoji}>{item.emoji || '🍽️'}</Text>
+                            <Text style={styles.itemName}>{item.name}</Text>
+                            {item.brand && <Text style={styles.itemBrand}>{item.brand}</Text>}
+                            <Text style={styles.itemPrice}>● {Math.round(item.kcalPer100g)} kcal / 100{item.unit === 'ml' ? 'ml' : 'g'}</Text>
+                            {!!affordText && (
+                              <Text style={[styles.itemAfford, tight && styles.itemAffordTight]}>{affordText}</Text>
+                            )}
+                          </View>
+                          {pctCovered > 0 && (
+                            <View style={[styles.itemFade, { height: `${pctCovered}%` }]}>
+                              <Text style={[styles.itemEmoji, styles.itemFadeText]}>{item.emoji || '🍽️'}</Text>
+                              <Text style={[styles.itemName, styles.itemFadeText]}>{item.name}</Text>
+                              <Text style={[styles.itemPrice, styles.itemFadeText]}>● {Math.round(item.kcalPer100g)} kcal / 100{item.unit === 'ml' ? 'ml' : 'g'}</Text>
+                            </View>
                           )}
-                          <Text style={[styles.itemGrams, locked && styles.itemTextLocked]}>
-                            {item.unitLabel ? `1 ${item.unitLabel} (${amountG}g)` : '100 g'}
-                          </Text>
-                          <Text style={[styles.itemPrice, locked && styles.itemPriceLocked]}>● {cost} kcal</Text>
-                          {locked && (
+                          {blocked && (
                             <View style={styles.lockedOverlay}>
-                              <Text style={styles.lockedOverlayText}>NO ALCANZA</Text>
+                              <Text style={styles.lockedOverlayText}>SIN MONEDAS</Text>
+                              <Text style={styles.lockedOverlayText}>PARA ESTO</Text>
                             </View>
                           )}
                         </Pressable>
@@ -784,7 +829,7 @@ export default function MercaderScreen() {
                     <View style={styles.exerciseTypeTabs}>
                       <Pressable
                         style={[styles.exerciseTypeTab, searchUnitMode === 'unit' && styles.exerciseTypeTabActive]}
-                        onPress={() => { setSearchUnitMode('unit'); setSearchAmount('1'); }}
+                        onPress={() => { setSearchUnitMode('unit'); setSearchAmount(''); }}
                       >
                         <Text style={[styles.exerciseTypeTabText, searchUnitMode === 'unit' && styles.exerciseTypeTabTextActive]}>
                           {selectedSearchItem.unitLabel.charAt(0).toUpperCase() + selectedSearchItem.unitLabel.slice(1)}s
@@ -792,7 +837,7 @@ export default function MercaderScreen() {
                       </Pressable>
                       <Pressable
                         style={[styles.exerciseTypeTab, searchUnitMode === 'g' && styles.exerciseTypeTabActive]}
-                        onPress={() => { setSearchUnitMode('g'); setSearchAmount('100'); }}
+                        onPress={() => { setSearchUnitMode('g'); setSearchAmount(''); }}
                       >
                         <Text style={[styles.exerciseTypeTabText, searchUnitMode === 'g' && styles.exerciseTypeTabTextActive]}>
                           Gramos
@@ -804,8 +849,11 @@ export default function MercaderScreen() {
                     <TextInput
                       style={styles.quantityPanelInput}
                       keyboardType="numeric"
+                      placeholder="0"
+                      placeholderTextColor={colors.muted}
                       value={searchAmount}
                       onChangeText={setSearchAmount}
+                      autoFocus
                     />
                     <Text style={styles.quantityPanelUnit}>
                       {searchUnitMode === 'unit' ? selectedSearchItem.unitLabel : 'gramos'}
@@ -815,7 +863,7 @@ export default function MercaderScreen() {
                   {searchUnitMode === 'unit' && searchAmountNum > 0 && (
                     <Text style={styles.exerciseSourceNote}>≈ {Math.round(searchAmountG)} g en total</Text>
                   )}
-                  {searchKcal > remaining && (
+                  {searchAmountNum > 0 && searchKcal > remaining && (
                     <Text style={styles.quantityPanelWarning}>No alcanza con tus monedas restantes.</Text>
                   )}
                   <Pressable
@@ -837,6 +885,72 @@ export default function MercaderScreen() {
 
       </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* ---- Cantidad al elegir un ingrediente de la grilla ---- */}
+      <Modal visible={!!quantityModalItem} transparent animationType="fade" onRequestClose={() => setQuantityModalItem(null)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.quantityPanelName}>
+              {quantityModalItem?.emoji || '🍽️'} {quantityModalItem?.name}
+            </Text>
+            {quantityModalItem?.unitLabel && (
+              <View style={styles.exerciseTypeTabs}>
+                <Pressable
+                  style={[styles.exerciseTypeTab, quantityModalUnitMode === 'unit' && styles.exerciseTypeTabActive]}
+                  onPress={() => { setQuantityModalUnitMode('unit'); setQuantityModalAmount(''); }}
+                >
+                  <Text style={[styles.exerciseTypeTabText, quantityModalUnitMode === 'unit' && styles.exerciseTypeTabTextActive]}>
+                    {quantityModalItem.unitLabel.charAt(0).toUpperCase() + quantityModalItem.unitLabel.slice(1)}s
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.exerciseTypeTab, quantityModalUnitMode === 'g' && styles.exerciseTypeTabActive]}
+                  onPress={() => { setQuantityModalUnitMode('g'); setQuantityModalAmount(''); }}
+                >
+                  <Text style={[styles.exerciseTypeTabText, quantityModalUnitMode === 'g' && styles.exerciseTypeTabTextActive]}>
+                    Gramos
+                  </Text>
+                </Pressable>
+              </View>
+            )}
+            <View style={styles.quantityPanelRow}>
+              <TextInput
+                style={styles.quantityPanelInput}
+                keyboardType="numeric"
+                placeholder="0"
+                placeholderTextColor={colors.muted}
+                value={quantityModalAmount}
+                onChangeText={setQuantityModalAmount}
+                autoFocus
+              />
+              <Text style={styles.quantityPanelUnit}>
+                {quantityModalUnitMode === 'unit' ? quantityModalItem?.unitLabel : (quantityModalItem?.unit === 'ml' ? 'mililitros' : 'gramos')}
+              </Text>
+              <Text style={styles.quantityPanelKcal}>{quantityModalKcal} kcal</Text>
+            </View>
+            {quantityModalUnitMode === 'unit' && quantityModalAmountNum > 0 && (
+              <Text style={styles.exerciseSourceNote}>≈ {Math.round(quantityModalAmountG)} g en total</Text>
+            )}
+            {quantityModalAmountNum > 0 && quantityModalKcal > remaining && (
+              <Text style={styles.quantityPanelWarning}>No alcanza con tus monedas restantes.</Text>
+            )}
+            <Pressable
+              style={({ pressed }) => [
+                styles.qpAddBtn,
+                (quantityModalAmountNum <= 0 || quantityModalKcal > remaining) && styles.qpAddBtnDisabled,
+                pressed && styles.pressedFeedback,
+              ]}
+              onPress={confirmQuantityModal}
+              disabled={quantityModalAmountNum <= 0 || quantityModalKcal > remaining}
+            >
+              <Text style={styles.qpAddBtnText}>Agregar</Text>
+            </Pressable>
+            <Pressable style={styles.modalCancel} onPress={() => setQuantityModalItem(null)}>
+              <Text style={styles.modalCancelText}>Cancelar</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
 
       {/* ---- Aviso de día anterior sin cerrar ---- */}
       <Modal visible={!!pendingDay} transparent animationType="fade" onRequestClose={() => {}}>
@@ -1161,15 +1275,35 @@ const styles = StyleSheet.create({
   ingredientsCard: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 12 },
   gridScroll: { maxHeight: 380 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  item: { width: '47%', backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.borderSoft, borderRadius: 8, padding: 12, minHeight: 44 },
-  itemLocked: { borderColor: colors.lockedRed },
+  item: { width: '47%', backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.borderSoft, borderRadius: 8, padding: 12, minHeight: 44, overflow: 'hidden' },
   itemEmoji: { fontSize: 23, marginBottom: 4 },
   itemName: { fontSize: 16.5, color: colors.parchment },
   itemBrand: { fontSize: 13, color: colors.muted, fontStyle: 'italic', marginTop: 1 },
-  itemGrams: { fontSize: 13.5, color: colors.muted, marginTop: 1 },
   itemPrice: { fontSize: 15, color: colors.goldBright, marginTop: 6 },
+  itemAfford: { fontSize: 12, color: colors.muted, marginTop: 3, fontStyle: 'italic' },
+  itemAffordTight: { color: colors.danger, fontStyle: 'normal', fontWeight: '700' },
+  // Estilos del bloqueo binario viejo — ya no los usa la grilla de
+  // Ingredientes (reemplazado por itemFade), pero la pestaña "Recetas" de
+  // Mercader todavía los necesita: esa sigue igual que antes a propósito.
+  itemLocked: { borderColor: colors.lockedRed },
+  itemGrams: { fontSize: 13.5, color: colors.muted, marginTop: 1 },
   itemPriceLocked: { color: colors.lockedRed },
   itemTextLocked: { opacity: 0.35 },
+  // Franja que se va "vaciando" de arriba hacia abajo a medida que quedan
+  // menos monedas — trae su propia copia del emoji/nombre/precio, pintada
+  // apagada, recortada a la misma altura que el overlay (por eso overflow
+  // 'hidden' arriba en .item), así lo que queda tapado se ve realmente
+  // apagado, no solo el fondo detrás.
+  itemFade: {
+    position: 'absolute',
+    left: 0, right: 0, top: 0,
+    overflow: 'hidden',
+    padding: 12,
+    backgroundColor: 'rgba(20,16,12,0.92)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(163,77,66,0.3)',
+  },
+  itemFadeText: { color: colors.muted, opacity: 0.55 },
   lockedOverlay: { position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center' },
   lockedOverlayText: { fontSize: 11, letterSpacing: 0.5, color: colors.lockedRed, fontWeight: '700' },
 
