@@ -148,8 +148,9 @@ export default function RecetasScreen() {
                     <Text style={styles.cardName} numberOfLines={1}>{r.name}</Text>
                     <Text style={styles.cardMeta}>
                       {r.mode === 'simple'
-                        ? (r.totalWeightG ? `Total manual · ${r.totalWeightG} g` : 'Total manual')
+                        ? (r.scalable && r.totalWeightG ? `Total manual · ${r.totalWeightG} g` : 'Total manual')
                         : `${r.ingredients?.length || 0} ingredientes`}
+                      {r.scalable ? ' · porcionable' : ''}
                     </Text>
                   </View>
                   <View style={styles.kcalPill}>
@@ -236,9 +237,10 @@ export default function RecetasScreen() {
 function RecipeEditor({ visible, onClose, recipe, sharedIngredients, myIngredients, onSaved, uid }) {
   const [name, setName] = useState('');
   const [mode, setMode] = useState('detailed'); // 'detailed' | 'simple'
+  const [scalable, setScalable] = useState(false); // preparación grande / batch cooking
   const [ingredients, setIngredients] = useState([]);
   const [manualKcal, setManualKcal] = useState('0');
-  const [totalWeightG, setTotalWeightG] = useState(''); // solo modo 'simple'; opcional
+  const [totalWeightG, setTotalWeightG] = useState(''); // solo si scalable && mode 'simple'; opcional
   const [activeCategory, setActiveCategory] = useState(CATEGORIES[0]);
   const [searchText, setSearchText] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
@@ -250,12 +252,14 @@ function RecipeEditor({ visible, onClose, recipe, sharedIngredients, myIngredien
       setMode(recipe.mode);
       setIngredients(recipe.ingredients || []);
       setManualKcal(String(recipe.totalKcal || 0));
+      setScalable(!!recipe.scalable);
       setTotalWeightG(recipe.totalWeightG ? String(recipe.totalWeightG) : '');
     } else {
       setName('');
       setMode('detailed');
       setIngredients([]);
       setManualKcal('0');
+      setScalable(false);
       setTotalWeightG('');
     }
     setSearchText('');
@@ -325,10 +329,11 @@ function RecipeEditor({ visible, onClose, recipe, sharedIngredients, myIngredien
       mode,
       ingredients: mode === 'detailed' ? ingredients : [],
       totalKcal: mode === 'simple' ? parseInt(manualKcal, 10) || 0 : sumKcal(ingredients),
-      // Peso total del lote, para poder repartirlo en porciones al agregarla a una comida.
-      // En modo 'detailed' se calcula solo (suma de amountG de los ingredientes) y no se
-      // guarda acá. En modo 'simple' es opcional: sin este dato la receta no es porcionable.
-      totalWeightG: mode === 'simple' ? (parseInt(totalWeightG, 10) || null) : null,
+      // Preparación grande (batch cooking): si está activado, esta receta se agrega
+      // pidiendo cantidad en vez de entera. En modo 'detailed' el peso sale solo (suma
+      // de amountG); en modo 'simple' depende del campo opcional de abajo.
+      scalable,
+      totalWeightG: mode === 'simple' && scalable ? (parseInt(totalWeightG, 10) || null) : null,
     };
     try {
       if (recipe) {
@@ -370,6 +375,23 @@ function RecipeEditor({ visible, onClose, recipe, sharedIngredients, myIngredien
             value={name}
             onChangeText={setName}
           />
+
+          <View style={styles.recipeCard}>
+            <View style={styles.toggleRow}>
+              <View style={{ flex: 1, paddingRight: 10 }}>
+                <Text style={styles.fieldLabel}>Es una preparación grande</Text>
+                <Text style={styles.manualHint}>
+                  Activalo si cocinás de una vez para varios días (ej. arroz con pollo) y después querés elegir cuánto comiste cada vez. Para un plato de una sola porción, dejalo apagado — se va a agregar entero de un toque.
+                </Text>
+              </View>
+              <Pressable
+                style={[styles.switchTrack, scalable && styles.switchTrackOn]}
+                onPress={() => setScalable((v) => !v)}
+              >
+                <View style={[styles.switchKnob, scalable && styles.switchKnobOn]} />
+              </Pressable>
+            </View>
+          </View>
 
           {/* ---- Tarjeta 1: modo + lo que ya cargaste ---- */}
           <View style={styles.recipeCard}>
@@ -421,20 +443,24 @@ function RecipeEditor({ visible, onClose, recipe, sharedIngredients, myIngredien
                   value={manualKcal}
                   onChangeText={setManualKcal}
                 />
-                <Text style={[styles.manualLabel, { marginTop: 16 }]}>
-                  Peso total de la preparación (opcional)
-                </Text>
-                <TextInput
-                  style={styles.manualInput}
-                  keyboardType="number-pad"
-                  placeholder="Ej: 1000"
-                  placeholderTextColor={colors.muted}
-                  value={totalWeightG}
-                  onChangeText={setTotalWeightG}
-                />
-                <Text style={styles.manualHint}>
-                  Cargalo si cocinaste una porción grande (batch cooking) y querés repartirla en varias comidas más adelante. Sin este dato, la receta se agrega siempre completa.
-                </Text>
+                {scalable && (
+                  <>
+                    <Text style={[styles.manualLabel, { marginTop: 16 }]}>
+                      Peso total de la preparación (opcional)
+                    </Text>
+                    <TextInput
+                      style={styles.manualInput}
+                      keyboardType="number-pad"
+                      placeholder="Ej: 1000"
+                      placeholderTextColor={colors.muted}
+                      value={totalWeightG}
+                      onChangeText={setTotalWeightG}
+                    />
+                    <Text style={styles.manualHint}>
+                      Sin este dato no vas a poder elegir cuánto comiste — la receta se va a agregar siempre completa.
+                    </Text>
+                  </>
+                )}
               </View>
             )}
           </View>
@@ -920,6 +946,12 @@ const styles = StyleSheet.create({
   manualLabel: { fontSize: 13, color: colors.muted, marginBottom: 6 },
   manualInput: { backgroundColor: colors.panel2, borderWidth: 1, borderColor: colors.borderSoft, borderRadius: 9, color: colors.parchment, fontSize: 22, textAlign: 'center', padding: 14 },
   manualHint: { fontSize: 11.5, color: colors.muted, marginTop: 8, lineHeight: 16 },
+  toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  fieldLabel: { fontSize: 14.5, color: colors.parchment, marginBottom: 3 },
+  switchTrack: { width: 42, height: 24, borderRadius: 12, backgroundColor: colors.panel2, borderWidth: 1, borderColor: colors.borderSoft, justifyContent: 'center' },
+  switchTrackOn: { backgroundColor: colors.availableGreen, borderColor: colors.availableGreen },
+  switchKnob: { width: 18, height: 18, borderRadius: 9, backgroundColor: colors.parchment, marginLeft: 2 },
+  switchKnobOn: { marginLeft: 22 },
 
   editorActions: { flexDirection: 'row', gap: 10, padding: 16, borderTopWidth: 1, borderTopColor: colors.borderSoft },
   editorBtnDelete: { flex: 1, minHeight: 46, borderRadius: 9, borderWidth: 1, borderColor: colors.danger, alignItems: 'center', justifyContent: 'center' },

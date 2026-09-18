@@ -824,20 +824,20 @@ export default function MercaderScreen() {
                 {recipes.map((recipe) => {
                   const total = recipeTotalKcal(recipe);
                   const locked = total > remaining;
-                  const scalable = !locked && !!recipeTotalWeightG(recipe);
+                  const canPortion = recipe.scalable && !!recipeTotalWeightG(recipe);
                   return (
                     <Pressable
                       key={recipe.id}
                       style={({ pressed }) => [styles.item, locked && styles.itemLocked, pressed && styles.pressedFeedback]}
-                      onPress={() => (scalable ? openRecipeQuantityModal(recipe) : addRecipeToMeal(recipe))}
+                      onPress={() => (canPortion && !locked ? openRecipeQuantityModal(recipe) : addRecipeToMeal(recipe))}
                       disabled={locked}
                     >
                       <Text style={[styles.itemEmoji, locked && styles.itemTextLocked]}>{recipe.emoji || '🍽️'}</Text>
                       <Text style={[styles.itemName, locked && styles.itemTextLocked]}>{recipe.name}</Text>
                       <Text style={[styles.itemGrams, locked && styles.itemTextLocked]}>
-                        {recipe.mode === 'simple'
-                          ? (recipe.totalWeightG ? `${recipe.totalWeightG} g totales` : 'Total manual')
-                          : `${recipe.ingredients?.length || 0} ingredientes`}
+                        {recipe.scalable
+                          ? (recipeTotalWeightG(recipe) ? `${recipeTotalWeightG(recipe)} g totales` : 'Preparación grande')
+                          : (recipe.mode === 'simple' ? 'Total manual' : `${recipe.ingredients?.length || 0} ingredientes`)}
                       </Text>
                       <Text style={[styles.itemPrice, locked && styles.itemPriceLocked]}>● {total} kcal</Text>
                       {locked && (
