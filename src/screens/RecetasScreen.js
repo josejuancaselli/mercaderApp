@@ -245,6 +245,9 @@ function RecipeEditor({ visible, onClose, recipe, sharedIngredients, myIngredien
   const [searchText, setSearchText] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [quantityModalItem, setQuantityModalItem] = useState(null);
+  const [quantityModalAmount, setQuantityModalAmount] = useState('');
+  const [quantityModalUnitMode, setQuantityModalUnitMode] = useState('g'); // 'g' | 'unit'
 
   const resetFrom = useCallback(() => {
     if (recipe) {
@@ -289,19 +292,35 @@ function RecipeEditor({ visible, onClose, recipe, sharedIngredients, myIngredien
   const categoryTabs = CATEGORIES;
   const categoryItems = allPickableIngredients.filter((i) => i.category === activeCategory);
 
-  const quickAddIngredient = (item) => {
-    const amountG = item.unitAmount || 100;
-    const kcal = Math.round((item.kcalPer100g * amountG) / 100);
+  const openQuantityModal = (item) => {
+    setQuantityModalItem(item);
+    setQuantityModalUnitMode(item.unitLabel ? 'unit' : 'g');
+    setQuantityModalAmount('');
+  };
+
+  const quantityModalAmountNum = parseFloat(quantityModalAmount.replace(',', '.')) || 0;
+  const quantityModalAmountG = quantityModalItem && quantityModalUnitMode === 'unit'
+    ? quantityModalAmountNum * (quantityModalItem.unitAmount || 0)
+    : quantityModalAmountNum;
+  const quantityModalKcal = quantityModalItem
+    ? Math.round(quantityModalItem.kcalPer100g * (quantityModalAmountG / 100))
+    : 0;
+
+  const confirmQuantityModal = () => {
+    if (!quantityModalItem || quantityModalAmountNum <= 0) return;
+    const item = quantityModalItem;
     setIngredients((prev) => [
       ...prev,
       {
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         name: item.name,
         kcalPer100g: item.kcalPer100g,
-        amountG,
-        kcal,
+        amountG: Math.round(quantityModalAmountG),
+        kcal: quantityModalKcal,
       },
     ]);
+    setQuantityModalItem(null);
+    setQuantityModalAmount('');
     setSearchText('');
   };
 
@@ -492,7 +511,7 @@ function RecipeEditor({ visible, onClose, recipe, sharedIngredients, myIngredien
                     <Text style={styles.orderEmptyText}>Sin resultados para "{searchText}".</Text>
                   ) : (
                     searchResults.map((item) => (
-                      <Pressable key={item.id} style={styles.searchResultRow} onPress={() => quickAddIngredient(item)}>
+                      <Pressable key={item.id} style={styles.searchResultRow} onPress={() => openQuantityModal(item)}>
                         <Text style={styles.searchResultName} numberOfLines={1}>
                           {item.emoji || '🍽️'} {item.name}{item.brand ? ` · ${item.brand}` : ''}
                         </Text>
@@ -522,7 +541,7 @@ function RecipeEditor({ visible, onClose, recipe, sharedIngredients, myIngredien
                   </ScrollView>
                   <View style={styles.grid}>
                     {categoryItems.map((item) => (
-                      <Pressable key={item.id} style={styles.item} onPress={() => quickAddIngredient(item)}>
+                      <Pressable key={item.id} style={styles.item} onPress={() => openQuantityModal(item)}>
                         <Text style={styles.itemEmoji}>{item.emoji || '🍽️'}</Text>
                         <Text style={styles.itemName}>{item.name}</Text>
                         {item.brand && <Text style={styles.itemBrand}>{item.brand}</Text>}
@@ -551,6 +570,68 @@ function RecipeEditor({ visible, onClose, recipe, sharedIngredients, myIngredien
           </Pressable>
         </View>
       </SafeAreaView>
+
+      <Modal visible={!!quantityModalItem} transparent animationType="fade" onRequestClose={() => setQuantityModalItem(null)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.quantityPanelName}>
+              {quantityModalItem?.emoji || '🍽️'} {quantityModalItem?.name}
+            </Text>
+            {quantityModalItem?.unitLabel && (
+              <View style={styles.exerciseTypeTabs}>
+                <Pressable
+                  style={[styles.exerciseTypeTab, quantityModalUnitMode === 'unit' && styles.exerciseTypeTabActive]}
+                  onPress={() => { setQuantityModalUnitMode('unit'); setQuantityModalAmount(''); }}
+                >
+                  <Text style={[styles.exerciseTypeTabText, quantityModalUnitMode === 'unit' && styles.exerciseTypeTabTextActive]}>
+                    {quantityModalItem.unitLabel.charAt(0).toUpperCase() + quantityModalItem.unitLabel.slice(1)}s
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.exerciseTypeTab, quantityModalUnitMode === 'g' && styles.exerciseTypeTabActive]}
+                  onPress={() => { setQuantityModalUnitMode('g'); setQuantityModalAmount(''); }}
+                >
+                  <Text style={[styles.exerciseTypeTabText, quantityModalUnitMode === 'g' && styles.exerciseTypeTabTextActive]}>
+                    Gramos
+                  </Text>
+                </Pressable>
+              </View>
+            )}
+            <View style={styles.quantityPanelRow}>
+              <TextInput
+                style={styles.quantityPanelInput}
+                keyboardType="numeric"
+                placeholder="0"
+                placeholderTextColor={colors.muted}
+                value={quantityModalAmount}
+                onChangeText={setQuantityModalAmount}
+                autoFocus
+              />
+              <Text style={styles.quantityPanelUnit}>
+                {quantityModalUnitMode === 'unit' ? quantityModalItem?.unitLabel : 'gramos'}
+              </Text>
+              <Text style={styles.quantityPanelKcal}>{quantityModalKcal} kcal</Text>
+            </View>
+            {quantityModalUnitMode === 'unit' && quantityModalAmountNum > 0 && (
+              <Text style={styles.exerciseSourceNote}>≈ {Math.round(quantityModalAmountG)} g en total</Text>
+            )}
+            <Pressable
+              style={({ pressed }) => [
+                styles.qpAddBtn,
+                quantityModalAmountNum <= 0 && styles.qpAddBtnDisabled,
+                pressed && styles.pressedFeedback,
+              ]}
+              onPress={confirmQuantityModal}
+              disabled={quantityModalAmountNum <= 0}
+            >
+              <Text style={styles.qpAddBtnText}>Agregar</Text>
+            </Pressable>
+            <Pressable style={styles.modalCancel} onPress={() => setQuantityModalItem(null)}>
+              <Text style={styles.modalCancelText}>Cancelar</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </Modal>
   );
 }
@@ -952,6 +1033,25 @@ const styles = StyleSheet.create({
   switchTrackOn: { backgroundColor: colors.availableGreen, borderColor: colors.availableGreen },
   switchKnob: { width: 18, height: 18, borderRadius: 9, backgroundColor: colors.parchment, marginLeft: 2 },
   switchKnobOn: { marginLeft: 22 },
+  // ---- Modal de cantidad (mismo patrón que Mercader) ----
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(8,6,4,0.75)', alignItems: 'center', justifyContent: 'center', padding: 24 },
+  modalCard: { width: '100%', maxWidth: 340, backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.gold, borderRadius: 14, padding: 20, alignItems: 'center' },
+  quantityPanelName: { fontSize: 17.5, color: colors.goldBright, marginBottom: 10 },
+  quantityPanelRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  quantityPanelInput: { width: 80, minHeight: 44, backgroundColor: colors.panel2, borderWidth: 1, borderColor: colors.borderSoft, borderRadius: 8, paddingHorizontal: 10, color: colors.parchment, fontSize: 17.5 },
+  quantityPanelUnit: { color: colors.muted, fontSize: 13, textTransform: 'uppercase' },
+  quantityPanelKcal: { marginLeft: 'auto', color: colors.goldBright, fontSize: 16.5, fontWeight: '700' },
+  qpAddBtn: { minHeight: 44, marginTop: 12, borderRadius: 8, backgroundColor: colors.gold, alignItems: 'center', justifyContent: 'center', width: '100%' },
+  qpAddBtnDisabled: { backgroundColor: colors.border },
+  qpAddBtnText: { color: colors.bg, fontWeight: '700', fontSize: 15 },
+  modalCancel: { minHeight: 44, alignItems: 'center', justifyContent: 'center', marginTop: 8 },
+  modalCancelText: { color: colors.muted, fontSize: 15 },
+  exerciseTypeTabs: { flexDirection: 'row', gap: 4, backgroundColor: colors.panel2, borderWidth: 1, borderColor: colors.borderSoft, borderRadius: 8, padding: 3, marginBottom: 14, width: '100%' },
+  exerciseTypeTab: { flex: 1, minHeight: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 6 },
+  exerciseTypeTabActive: { backgroundColor: colors.gold },
+  exerciseTypeTabText: { fontSize: 12.5, color: colors.muted },
+  exerciseTypeTabTextActive: { color: colors.bg, fontWeight: '700' },
+  exerciseSourceNote: { textAlign: 'center', fontSize: 10.5, color: colors.muted, fontStyle: 'italic', marginBottom: 8 },
 
   editorActions: { flexDirection: 'row', gap: 10, padding: 16, borderTopWidth: 1, borderTopColor: colors.borderSoft },
   editorBtnDelete: { flex: 1, minHeight: 46, borderRadius: 9, borderWidth: 1, borderColor: colors.danger, alignItems: 'center', justifyContent: 'center' },
