@@ -517,6 +517,7 @@ export default function MercaderScreen() {
   const bankKcal = profile.bankKcal || 0;
   const kcalUntilNextKg = bankKcal % KCAL_PER_KG;
   const entriesForMeal = day.entries.filter((e) => e.mealType === activeMeal);
+  const mealTotalKcal = entriesForMeal.reduce((s, e) => s + e.kcal, 0);
   const selectCategory = (cat) => {
     setActiveCategory((prev) => (prev === cat ? null : cat));
   };
@@ -666,40 +667,50 @@ export default function MercaderScreen() {
                 <Text style={styles.orderEmptyText}>Acá va tu pedido — todavía no agregaste nada.</Text>
               </View>
             ) : (
-              entriesForMeal.map((entry) => (
-                <View key={entry.id} style={styles.orderRow}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.orderName}>
-                      {entry.emoji || '🍽️'} {entry.name}
-                      {entry.brand ? ` · ${entry.brand}` : ''}
-                      {entry.recipeName ? ` · ${entry.recipeName}` : ''}
-                    </Text>
-                    <Text style={styles.orderKcal}>{entry.kcal} kcal</Text>
+              <>
+                {entriesForMeal.map((entry) => (
+                  <View key={entry.id} style={styles.orderRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.orderName}>
+                        {entry.emoji || '🍽️'} {entry.name}
+                        {entry.brand ? ` · ${entry.brand}` : ''}
+                        {entry.recipeName ? ` · ${entry.recipeName}` : ''}
+                      </Text>
+                      {entry.kcalPer100g != null && (
+                        <View style={styles.orderGramsRow}>
+                          <Pressable
+                            style={({ pressed }) => [styles.miniBtn, !canStep(entry, -10) && styles.miniBtnDisabled, pressed && styles.pressedFeedback]}
+                            onPress={() => stepEntry(entry, -10)}
+                            disabled={!canStep(entry, -10)}
+                          >
+                            <Text style={styles.miniBtnText}>−</Text>
+                          </Pressable>
+                          <Text style={styles.orderGrams}>{entry.amountG}g</Text>
+                          <Pressable
+                            style={({ pressed }) => [styles.miniBtn, !canStep(entry, 10) && styles.miniBtnDisabled, pressed && styles.pressedFeedback]}
+                            onPress={() => stepEntry(entry, 10)}
+                            disabled={!canStep(entry, 10)}
+                          >
+                            <Text style={styles.miniBtnText}>+</Text>
+                          </Pressable>
+                        </View>
+                      )}
+                    </View>
+                    <View style={styles.orderKcalWrap}>
+                      <Text style={styles.orderKcalBig}>{entry.kcal} kcal</Text>
+                    </View>
+                    <Pressable style={styles.orderRemove} onPress={() => handleRemoveEntry(entry.id)}>
+                      <Text style={styles.orderRemoveText}>✕</Text>
+                    </Pressable>
                   </View>
-                  {entry.kcalPer100g != null && (
-                    <>
-                      <Pressable
-                        style={({ pressed }) => [styles.miniBtn, !canStep(entry, -10) && styles.miniBtnDisabled, pressed && styles.pressedFeedback]}
-                        onPress={() => stepEntry(entry, -10)}
-                        disabled={!canStep(entry, -10)}
-                      >
-                        <Text style={styles.miniBtnText}>−</Text>
-                      </Pressable>
-                      <Text style={styles.orderGrams}>{entry.amountG}g</Text>
-                      <Pressable
-                        style={({ pressed }) => [styles.miniBtn, !canStep(entry, 10) && styles.miniBtnDisabled, pressed && styles.pressedFeedback]}
-                        onPress={() => stepEntry(entry, 10)}
-                        disabled={!canStep(entry, 10)}
-                      >
-                        <Text style={styles.miniBtnText}>+</Text>
-                      </Pressable>
-                    </>
-                  )}
-                  <Pressable style={styles.orderRemove} onPress={() => handleRemoveEntry(entry.id)}>
-                    <Text style={styles.orderRemoveText}>✕</Text>
-                  </Pressable>
+                ))}
+                <View style={styles.orderTotalRow}>
+                  <Text style={styles.orderTotalLabel}>Total</Text>
+                  <View style={styles.orderKcalWrap}>
+                    <Text style={styles.orderKcalBig}>{mealTotalKcal} kcal</Text>
+                  </View>
                 </View>
-              ))
+              </>
             )}
           </ScrollView>
         </View>
@@ -1309,12 +1320,16 @@ const styles = StyleSheet.create({
   orderEmpty: { padding: 20, alignItems: 'center' },
   orderEmptyText: { color: colors.muted, fontSize: 15, textAlign: 'center', fontStyle: 'italic' },
   orderScrollFixed: { height: 210 },
-  orderRow: { flexDirection: 'row', alignItems: 'center', gap: 6, padding: 10, borderBottomWidth: 1, borderBottomColor: colors.borderSoft },
+  orderRow: { flexDirection: 'row', padding: 10, borderBottomWidth: 1, borderBottomColor: colors.borderSoft },
   orderName: { color: colors.parchment, fontSize: 16 },
+  orderGramsRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 },
   orderGrams: { color: colors.muted, fontSize: 14, minWidth: 34, textAlign: 'center' },
-  orderKcal: { color: colors.goldBright, fontSize: 14 },
-  orderRemove: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+  orderKcalWrap: { justifyContent: 'center', paddingHorizontal: 6 },
+  orderKcalBig: { color: colors.goldBright, fontSize: 18, fontWeight: '700' },
+  orderRemove: { justifyContent: 'center', alignItems: 'center', paddingHorizontal: 12, borderLeftWidth: 1, borderLeftColor: colors.borderSoft, marginLeft: 2 },
   orderRemoveText: { color: colors.danger, fontSize: 17.5 },
+  orderTotalRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 10, marginTop: 2, borderTopWidth: 1, borderTopColor: colors.border },
+  orderTotalLabel: { color: colors.goldBright, fontSize: 16, fontWeight: '700' },
   miniBtn: { width: 38, height: 38, borderRadius: 8, borderWidth: 1, borderColor: colors.borderSoft, backgroundColor: colors.panel, alignItems: 'center', justifyContent: 'center' },
   miniBtnDisabled: { opacity: 0.3 },
   miniBtnText: { color: colors.goldBright, fontSize: 22 },

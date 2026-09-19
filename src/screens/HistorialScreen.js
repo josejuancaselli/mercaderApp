@@ -139,6 +139,7 @@ export default function HistorialScreen() {
   const [dayHistory, setDayHistoryData] = useState([]);
   const [weightLogs, setWeightLogsData] = useState([]);
   const [period, setPeriod] = useState(PERIODS[0]);
+  const [selectedBar, setSelectedBar] = useState(null); // { label, weight } | null — última barra tocada
 
   const [weightModalOpen, setWeightModalOpen] = useState(false);
   const [weightInput, setWeightInput] = useState('');
@@ -256,6 +257,7 @@ export default function HistorialScreen() {
       value: Math.max(0, w - axisRange.min),
       label: s.label,
       frontColor: colors.gold,
+      weightActual: s.weight ?? null,
     };
   });
   const savedValues = chartSeries.map((s) => s.saved).filter((v) => v != null);
@@ -343,7 +345,7 @@ export default function HistorialScreen() {
                 <Pressable
                   key={p.key}
                   style={[styles.periodTab, period.key === p.key && styles.periodTabActive]}
-                  onPress={() => setPeriod(p)}
+                  onPress={() => { setPeriod(p); setSelectedBar(null); }}
                 >
                   <Text style={[styles.periodTabText, period.key === p.key && styles.periodTabTextActive]}>{p.label}</Text>
                 </Pressable>
@@ -369,41 +371,49 @@ export default function HistorialScreen() {
 
             <View style={styles.chartCard}>
               {barData.length > 0 ? (
-                <BarChart
-                  data={barData}
-                  height={220}
-                  width={useScroll ? undefined : chartInnerWidth}
-                  adjustToWidth={!useScroll}
-                  scrollable={useScroll}
-                  barWidth={barWidth}
-                  spacing={spacing}
-                  barBorderRadius={3}
-                  frontColor={colors.gold}
-                  yAxisThickness={0}
-                  xAxisColor={colors.borderSoft}
-                  rulesColor="rgba(74,60,40,0.25)"
-                  maxValue={axisRange.max - axisRange.min}
-                  noOfSections={axisRange.sections}
-                  formatYLabel={(label) => `${(Number(label) + axisRange.min).toFixed(1)} kg`}
-                  yAxisTextStyle={{ color: colors.gold, fontSize: 11 }}
-                  xAxisLabelTextStyle={{ color: colors.muted, fontSize: 11 }}
-                  showLine={hasWeightLine}
-                  lineData={lineData}
-                  lineConfig={{
-                    color: colors.parchment,
-                    thickness: 2.5,
-                    curved: true,
-                    curvature: 0.2,
-                    hideDataPoints: true,
-                    isSecondary: true,
-                  }}
-                  secondaryYAxis={{
-                    maxValue: savingsRange.max,
-                    noOfSections: savingsRange.sections,
-                    yAxisSide: yAxisSides.RIGHT,
-                    yAxisTextStyle: { color: colors.parchment, fontSize: 11 },
-                  }}
-                />
+                <>
+                  <Text style={styles.barTapHint}>
+                    {selectedBar
+                      ? `${selectedBar.label} · ${selectedBar.weight != null ? selectedBar.weight.toFixed(1) + ' kg' : 'sin registro'}`
+                      : 'Tocá una barra para ver el peso exacto'}
+                  </Text>
+                  <BarChart
+                    data={barData}
+                    height={220}
+                    width={useScroll ? undefined : chartInnerWidth}
+                    adjustToWidth={!useScroll}
+                    scrollable={useScroll}
+                    barWidth={barWidth}
+                    spacing={spacing}
+                    barBorderRadius={3}
+                    frontColor={colors.gold}
+                    yAxisThickness={0}
+                    xAxisColor={colors.borderSoft}
+                    rulesColor="rgba(74,60,40,0.25)"
+                    maxValue={axisRange.max - axisRange.min}
+                    noOfSections={axisRange.sections}
+                    formatYLabel={(label) => `${(Number(label) + axisRange.min).toFixed(1)} kg`}
+                    yAxisTextStyle={{ color: colors.gold, fontSize: 11 }}
+                    xAxisLabelTextStyle={{ color: colors.muted, fontSize: 11 }}
+                    showLine={hasWeightLine}
+                    lineData={lineData}
+                    lineConfig={{
+                      color: colors.parchment,
+                      thickness: 2.5,
+                      curved: true,
+                      curvature: 0.2,
+                      hideDataPoints: true,
+                      isSecondary: true,
+                    }}
+                    secondaryYAxis={{
+                      maxValue: savingsRange.max,
+                      noOfSections: savingsRange.sections,
+                      yAxisSide: yAxisSides.RIGHT,
+                      yAxisTextStyle: { color: colors.parchment, fontSize: 11 },
+                    }}
+                    onPress={(item) => setSelectedBar({ label: item.label, weight: item.weightActual })}
+                  />
+                </>
               ) : (
                 <Text style={styles.chartEmpty}>Sin datos suficientes para graficar todavía.</Text>
               )}
@@ -570,6 +580,7 @@ const styles = StyleSheet.create({
 
   chartCard: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.borderSoft, borderRadius: 12, padding: 14, alignItems: 'center' },
   chartEmpty: { color: colors.muted, fontStyle: 'italic', fontSize: 13, paddingVertical: 40 },
+  barTapHint: { color: colors.goldBright, fontSize: 13, fontWeight: '600', marginBottom: 6, textAlign: 'center' },
   chartLegend: { flexDirection: 'row', gap: 16, flexWrap: 'wrap', justifyContent: 'center', marginTop: 14 },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   legendSwatch: { width: 11, height: 11, borderRadius: 3 },
