@@ -4,7 +4,6 @@ import {
   Text,
   TextInput,
   Pressable,
-  StyleSheet,
   ScrollView,
   Modal,
   ActivityIndicator,
@@ -19,6 +18,7 @@ import { getAllDayHistory } from '../storage/dayHistory';
 import { getAllWeightLogs, setWeightLog, deleteWeightLog } from '../storage/weightLogs';
 import { todayId } from '../storage/days';
 import { colors } from '../theme/colors';
+import { styles } from './styles/HistorialScreenStyles';
 
 const KCAL_PER_KG = 7700;
 
@@ -544,115 +544,3 @@ export default function HistorialScreen() {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  pressedFeedback: { transform: [{ scale: 0.96 }], opacity: 0.8 },
-  safeArea: { flex: 1, backgroundColor: colors.bg },
-  loadingScreen: { flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' },
-  scrollContent: { padding: 16, paddingBottom: 100, gap: 14 },
-
-  pageTitle: { fontSize: 20, fontWeight: '700', color: colors.goldBright, marginBottom: 2 },
-  pageSub: { fontSize: 13.5, color: colors.muted, marginBottom: 4 },
-
-  emptyState: { alignItems: 'center', paddingVertical: 50, paddingHorizontal: 20 },
-  emptyTitle: { fontSize: 16, color: colors.goldBright, fontWeight: '700', marginTop: 16 },
-  emptySub: { fontSize: 14, color: colors.muted, marginTop: 8, lineHeight: 20, textAlign: 'center', maxWidth: 300 },
-  emptyCta: { marginTop: 20, minHeight: 44, paddingHorizontal: 22, borderRadius: 8, backgroundColor: colors.gold, alignItems: 'center', justifyContent: 'center' },
-  emptyCtaText: { color: colors.bg, fontSize: 12, letterSpacing: 0.5, textTransform: 'uppercase', fontWeight: '700' },
-
-  periodTabs: { flexDirection: 'row', gap: 6, backgroundColor: colors.panel2, borderWidth: 1, borderColor: colors.borderSoft, borderRadius: 9, padding: 4 },
-  periodTab: { flex: 1, minHeight: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 7 },
-  periodTabActive: { backgroundColor: colors.panel },
-  periodTabText: { fontSize: 11, color: colors.muted, fontWeight: '600' },
-  periodTabTextActive: { color: colors.goldBright },
-
-  goalCard: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.borderSoft, borderRadius: 12, padding: 16 },
-  goalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 },
-  goalTitle: { fontSize: 11, letterSpacing: 0.8, color: colors.muted, fontWeight: '700' },
-  goalPct: { fontSize: 16, color: colors.goldBright, fontWeight: '700' },
-  goalTrack: { height: 10, borderRadius: 5, backgroundColor: colors.panel2, borderWidth: 1, borderColor: colors.borderSoft, overflow: 'hidden' },
-  goalFill: { height: '100%', backgroundColor: colors.availableGreen },
-  goalLabels: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
-  goalLabelText: { fontSize: 11.5, color: colors.muted },
-  goalLabelBold: { color: colors.parchment, fontWeight: '600' },
-  goalRemaining: { textAlign: 'center', marginTop: 10, fontSize: 12.5, color: colors.muted, fontStyle: 'italic' },
-  goalRemainingBold: { color: colors.goldBright, fontStyle: 'normal', fontWeight: '700' },
-
-  chartCard: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.borderSoft, borderRadius: 12, padding: 14, alignItems: 'center' },
-  chartEmpty: { color: colors.muted, fontStyle: 'italic', fontSize: 13, paddingVertical: 40 },
-  barTapHint: { color: colors.goldBright, fontSize: 13, fontWeight: '600', marginBottom: 6, textAlign: 'center' },
-  chartLegend: { flexDirection: 'row', gap: 16, flexWrap: 'wrap', justifyContent: 'center', marginTop: 14 },
-  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  legendSwatch: { width: 11, height: 11, borderRadius: 3 },
-  legendSwatchLine: { borderRadius: 6 },
-  legendText: { fontSize: 12, color: colors.muted },
-
-  statsCard: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.gold, borderRadius: 12, padding: 16 },
-  statsTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  bankIcon: { fontSize: 30 },
-  statsTopInfo: { flex: 1 },
-  statsLabel: { fontSize: 10.5, letterSpacing: 0.6, color: colors.muted, fontWeight: '700' },
-  statsAlltimeValue: { fontSize: 18, color: colors.goldBright, fontWeight: '700', marginTop: 4 },
-  statsSub: { fontSize: 12, color: colors.muted, fontWeight: '500' },
-  statsDivider: { height: 1, backgroundColor: colors.borderSoft, marginVertical: 14 },
-  statsRow: { flexDirection: 'row' },
-  statsCol: { flex: 1 },
-  statsColDivider: { width: 1, backgroundColor: colors.borderSoft, marginHorizontal: 14 },
-  statsValue: { fontSize: 19, color: colors.goldBright, fontWeight: '700', marginTop: 6 },
-  statsValueBlue: { color: colors.boostBlueBright },
-  statsDelta: { fontSize: 12, color: colors.availableGreen, marginTop: 3 },
-  statsDeltaUp: { color: colors.danger },
-  statsAvg: { fontSize: 11, color: colors.muted, marginTop: 5, paddingTop: 5, borderTopWidth: 1, borderTopColor: colors.borderSoft, borderStyle: 'dashed' },
-
-  weightCompareRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 6 },
-  weightInitialInline: { fontSize: 12.5, color: colors.muted, fontWeight: '600' },
-  weightCompareArrow: { fontSize: 12, color: colors.muted },
-  weightCurrentInline: { fontSize: 21, color: colors.goldBright, fontWeight: '700' },
-  statsDeltaBig: { fontSize: 14, color: colors.availableGreen, marginTop: 8, fontWeight: '600' },
-  statsAvgBig: { fontSize: 12.5, color: colors.muted, marginTop: 5, paddingTop: 5, borderTopWidth: 1, borderTopColor: colors.borderSoft, borderStyle: 'dashed' },
-
-  fab: {
-    position: 'absolute',
-    right: 20,
-    bottom: 24,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: colors.gold,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 6,
-    elevation: 8,
-  },
-  fabIcon: { fontSize: 30, color: colors.bg, fontWeight: '300', marginTop: -2 },
-
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(8,6,4,0.72)', alignItems: 'center', justifyContent: 'center', padding: 24 },
-  modalCard: { width: '100%', maxWidth: 320, backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.gold, borderRadius: 14, padding: 20, alignItems: 'center' },
-  modalTitle: { fontSize: 15, color: colors.goldBright, marginBottom: 14, fontWeight: '700' },
-  modalHint: { fontSize: 11.5, color: colors.muted, marginTop: 10, lineHeight: 16, textAlign: 'center' },
-  weightModalRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  weightModalInput: { width: 110, height: 46, backgroundColor: colors.panel2, borderWidth: 1, borderColor: colors.borderSoft, borderRadius: 8, color: colors.parchment, fontSize: 20, textAlign: 'center' },
-  fieldUnit: { fontSize: 13, color: colors.muted },
-  modalActions: { flexDirection: 'row', gap: 8, marginTop: 18, width: '100%' },
-  modalCancelBtn: { flex: 1, minHeight: 42, borderRadius: 8, backgroundColor: colors.panel2, borderWidth: 1, borderColor: colors.borderSoft, alignItems: 'center', justifyContent: 'center' },
-  modalCancelBtnText: { color: colors.muted, fontSize: 12 },
-  modalConfirmBtn: { flex: 1, minHeight: 42, borderRadius: 8, backgroundColor: colors.gold, alignItems: 'center', justifyContent: 'center' },
-  modalConfirmBtnText: { color: colors.bg, fontWeight: '700', fontSize: 12 },
-  logListLink: { marginTop: 14, fontSize: 12, color: colors.muted, textDecorationLine: 'underline' },
-
-  logListCard: { width: '100%', maxWidth: 420, maxHeight: '78%', backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.gold, borderRadius: 14, padding: 16 },
-  logListHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 10, marginBottom: 6, borderBottomWidth: 1, borderBottomColor: colors.borderSoft, borderStyle: 'dashed' },
-  logListClose: { fontSize: 16, color: colors.muted, padding: 4 },
-  logListScroll: { maxHeight: 420 },
-  logListEmpty: { textAlign: 'center', color: colors.muted, fontStyle: 'italic', fontSize: 13, paddingVertical: 20 },
-  logRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.borderSoft },
-  logRowDate: { flex: 1, fontSize: 14, color: colors.parchment },
-  logRowVal: { fontSize: 14, color: colors.goldBright, fontWeight: '700', minWidth: 64, textAlign: 'right' },
-  logRowInput: { width: 64, height: 32, backgroundColor: colors.panel2, borderWidth: 1, borderColor: colors.gold, borderRadius: 6, color: colors.parchment, fontSize: 14, textAlign: 'center' },
-  logIconBtn: { width: 30, height: 30, borderRadius: 15, borderWidth: 1, borderColor: colors.borderSoft, backgroundColor: colors.panel2, alignItems: 'center', justifyContent: 'center' },
-  logIconText: { color: colors.muted, fontSize: 13 },
-  logIconDanger: { color: colors.danger },
-});

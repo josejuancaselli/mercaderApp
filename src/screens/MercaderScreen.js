@@ -4,7 +4,6 @@ import {
   Text,
   TextInput,
   Pressable,
-  StyleSheet,
   ScrollView,
   Modal,
   ActivityIndicator,
@@ -25,6 +24,7 @@ import { getAllMyIngredients } from '../storage/myIngredients';
 import { CATEGORIES } from '../data/curatedIngredients';
 import { getTopUsage, recordUsage } from '../storage/ingredientUsage';
 import { colors } from '../theme/colors';
+import { styles } from './styles/MercaderScreenStyles';
 import { useFocusEffect } from '@react-navigation/native';
 
 const MEALS = ['Desayuno', 'Almuerzo', 'Merienda', 'Cena'];
@@ -32,7 +32,7 @@ const KCAL_PER_KG = 7700;
 
 /* Gimnasio: monto fijo por sesión, sin variables de peso/tiempo/intensidad
    (no existe una fórmula de METs para musculación con la misma certeza que caminata/carrera). */
-const GYM_FIXED_KCAL = 100;
+const GYM_FIXED_KCAL = 200;
 
 /* Ecuación metabólica ACSM (caminata para <8km/h, carrera para >=8km/h ~5mph).
    VO2 en ml/kg/min; kcal/min = VO2 × peso(kg) / 200. */
@@ -1264,204 +1264,3 @@ export default function MercaderScreen() {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  pressedFeedback: { transform: [{ scale: 0.94 }], opacity: 0.75 },
-  safeArea: { flex: 1, backgroundColor: colors.bg },
-  loadingScreen: { flex: 1, backgroundColor: colors.bg, alignItems: 'center', justifyContent: 'center' },
-  scrollContent: { padding: 16, paddingBottom: 40, gap: 22 },
-
-  pouchBar: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 16 },
-  pouchBarBoosted: { borderColor: colors.boostBlue },
-  pouchRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  pouchLabel: { fontSize: 11.5, letterSpacing: 1.2, textTransform: 'uppercase', color: colors.muted },
-  pouchCount: { fontSize: 30, fontWeight: '700', color: colors.goldBright, marginTop: 3 },
-  pouchCountBoosted: { color: colors.boostBlueBright },
-  pouchMax: { fontSize: 18.5, color: colors.muted, fontWeight: '500' },
-  exerciseFab: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.boostBlue, alignItems: 'center', justifyContent: 'center' },
-  exerciseFabIcon: { fontSize: 21 },
-  exerciseFabBadge: { position: 'absolute', top: -6, left: -8, backgroundColor: colors.boostBlueBright, borderRadius: 8, paddingHorizontal: 5, paddingVertical: 1 },
-  exerciseFabBadgeText: { fontSize: 10.5, fontWeight: '700', color: '#0e1a24' },
-  pouchTrack: { height: 8, borderRadius: 4, backgroundColor: colors.panel2, borderWidth: 1, borderColor: colors.borderSoft, marginTop: 10, overflow: 'visible' },
-  pouchFill: { position: 'absolute', left: 0, top: 0, bottom: 0, borderRadius: 4 },
-  deficitMarker: { position: 'absolute', top: -2, bottom: -2, width: 2, backgroundColor: colors.goldBright },
-  zoneCaption: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 },
-  zoneCaptionText: { fontSize: 11.5, color: colors.muted },
-  boostBanner: { fontSize: 12, color: colors.boostBlueBright, fontStyle: 'italic', marginTop: 8 },
-  bankInlineText: { fontSize: 10, color: colors.muted, marginTop: 18, borderTopWidth: 1, borderTopColor: colors.borderSoft, paddingTop: 6 },
-  kcalHighlight: { color: colors.goldBright, fontWeight: 'bold', },
-
-
-  topRow: { flexDirection: 'row', gap: 10, alignItems: 'stretch' },
-  pouchBarInRow: { flex: 1 },
-  saveBankSquare: {
-    width: 100,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.gold,
-    backgroundColor: colors.panel,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 10,
-  },
-  saveBankSquareIcon: { fontSize: 25.5 },
-  saveBankSquareTitle: { fontSize: 12.5, letterSpacing: 0.3, textTransform: 'uppercase', color: colors.goldBright, fontWeight: '700', textAlign: 'center', lineHeight: 14 },
-  saveBankSquarePreview: { fontSize: 11.5, color: colors.muted, textAlign: 'center', lineHeight: 13 },
-
-  orderCard: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 10, overflow: 'hidden' },
-  mealTabs: { flexDirection: 'row' },
-  mealTab: { flex: 1, minHeight: 40, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.panel2, borderBottomWidth: 2, borderBottomColor: colors.borderSoft },
-  mealTabActive: { backgroundColor: colors.panel, borderBottomColor: colors.gold },
-  mealTabText: { fontSize: 14.5, color: colors.muted },
-  mealTabTextActive: { color: colors.goldBright, fontWeight: '700' },
-
-  orderEmpty: { padding: 20, alignItems: 'center' },
-  orderEmptyText: { color: colors.muted, fontSize: 15, textAlign: 'center', fontStyle: 'italic' },
-  orderScrollFixed: { height: 210 },
-  orderRow: { flexDirection: 'row', padding: 10, borderBottomWidth: 1, borderBottomColor: colors.borderSoft },
-  orderName: { color: colors.parchment, fontSize: 16 },
-  orderGramsRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 },
-  orderGrams: { color: colors.muted, fontSize: 14, minWidth: 34, textAlign: 'center' },
-  orderKcalWrap: { justifyContent: 'center', paddingHorizontal: 6 },
-  orderKcalBig: { color: colors.goldBright, fontSize: 18, fontWeight: '700' },
-  orderRemove: { justifyContent: 'center', alignItems: 'center', paddingHorizontal: 12, borderLeftWidth: 1, borderLeftColor: colors.borderSoft, marginLeft: 2 },
-  orderRemoveText: { color: colors.danger, fontSize: 17.5 },
-  orderTotalRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 10, marginTop: 2, borderTopWidth: 1, borderTopColor: colors.border },
-  orderTotalLabel: { color: colors.goldBright, fontSize: 16, fontWeight: '700' },
-  miniBtn: { width: 38, height: 38, borderRadius: 8, borderWidth: 1, borderColor: colors.borderSoft, backgroundColor: colors.panel, alignItems: 'center', justifyContent: 'center' },
-  miniBtnDisabled: { opacity: 0.3 },
-  miniBtnText: { color: colors.goldBright, fontSize: 22 },
-
-  shopTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8, marginBottom: 16 },
-  shopTitleRowFirst: { marginTop: 0 },
-  ingredientsEmpty: { minHeight: 130, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.borderSoft, borderStyle: 'dashed', borderRadius: 10, backgroundColor: colors.panel2, paddingHorizontal: 24 },
-  ingredientsEmptyText: { color: colors.muted, fontSize: 16, textAlign: 'center', lineHeight: 19 },
-  shopTitleLine: { flex: 1, height: 1, backgroundColor: colors.border },
-  shopTitleText: { fontSize: 13.5, letterSpacing: 1.2, textTransform: 'uppercase', color: colors.goldBright, fontWeight: '700' },
-
-  subTabs: { flexDirection: 'row', gap: 8, marginBottom: 16 },
-  subTab: { flex: 1, minHeight: 40, borderRadius: 8, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.borderSoft },
-  subTabActive: { borderColor: colors.gold, backgroundColor: colors.panel },
-  subTabText: { color: colors.muted, fontSize: 15 },
-  subTabTextActive: { color: colors.goldBright, fontWeight: '700' },
-
-  categoryRow: { gap: 8, paddingVertical: 4, marginBottom: 10 },
-  categoryChip: { minHeight: 36, paddingHorizontal: 14, borderRadius: 18, borderWidth: 1, borderColor: colors.borderSoft, backgroundColor: colors.panel2, alignItems: 'center', justifyContent: 'center' },
-  categoryChipActive: { backgroundColor: colors.gold, borderColor: colors.gold },
-  categoryChipText: { color: colors.muted, fontSize: 14.5 },
-  categoryChipTextActive: { color: colors.bg, fontWeight: '700' },
-
-  ingredientsCard: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 12 },
-  gridScroll: { maxHeight: 380 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  item: { width: '47%', backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.borderSoft, borderRadius: 8, padding: 12, minHeight: 44, overflow: 'hidden' },
-  itemEmoji: { fontSize: 23, marginBottom: 4 },
-  itemName: { fontSize: 16.5, color: colors.parchment },
-  itemBrand: { fontSize: 13, color: colors.muted, fontStyle: 'italic', marginTop: 1 },
-  itemPrice: { fontSize: 15, color: colors.goldBright, marginTop: 6 },
-  itemAfford: { fontSize: 12, color: colors.muted, marginTop: 3, fontStyle: 'italic' },
-  itemAffordTight: { color: colors.danger, fontStyle: 'normal', fontWeight: '700' },
-  // Estilos del bloqueo binario viejo — ya no los usa la grilla de
-  // Ingredientes (reemplazado por itemFade), pero la pestaña "Recetas" de
-  // Mercader todavía los necesita: esa sigue igual que antes a propósito.
-  itemLocked: { borderColor: colors.lockedRed },
-  itemGrams: { fontSize: 13.5, color: colors.muted, marginTop: 1 },
-  itemPriceLocked: { color: colors.lockedRed },
-  itemTextLocked: { opacity: 0.35 },
-  // Franja que se va "vaciando" de arriba hacia abajo a medida que quedan
-  // menos monedas — trae su propia copia del emoji/nombre/precio, pintada
-  // apagada, recortada a la misma altura que el overlay (por eso overflow
-  // 'hidden' arriba en .item), así lo que queda tapado se ve realmente
-  // apagado, no solo el fondo detrás.
-  itemFade: {
-    position: 'absolute',
-    left: 0, right: 0, top: 0,
-    overflow: 'hidden',
-    padding: 12,
-    backgroundColor: 'rgba(20,16,12,0.92)',
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(163,77,66,0.3)',
-  },
-  itemFadeText: { color: colors.muted, opacity: 0.55 },
-  lockedOverlay: { position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center' },
-  lockedOverlayText: { fontSize: 11, letterSpacing: 0.5, color: colors.lockedRed, fontWeight: '700' },
-
-  searchRow: { flexDirection: 'row', gap: 8 },
-  searchInput: { flex: 1, minHeight: 44, backgroundColor: colors.panel2, borderWidth: 1, borderColor: colors.borderSoft, borderRadius: 8, paddingHorizontal: 12, color: colors.parchment },
-  searchEmptyText: { color: colors.muted, fontSize: 15, fontStyle: 'italic', marginTop: 10 },
-  searchResultRow: { minHeight: 44, borderWidth: 1, borderColor: colors.borderSoft, borderRadius: 8, padding: 12, marginTop: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
-  searchResultName: { flex: 1, color: colors.parchment, fontSize: 16 },
-  searchResultKcal: { color: colors.muted, fontSize: 13.5 },
-
-  quantityPanel: { marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.borderSoft, borderStyle: 'dashed' },
-  quantityPanelName: { fontSize: 17.5, color: colors.goldBright, marginBottom: 10 },
-  quantityPanelRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  quantityPanelInput: { width: 80, minHeight: 44, backgroundColor: colors.panel2, borderWidth: 1, borderColor: colors.borderSoft, borderRadius: 8, paddingHorizontal: 10, color: colors.parchment, fontSize: 17.5 },
-  quantityPanelUnit: { color: colors.muted, fontSize: 13, textTransform: 'uppercase' },
-  quantityPanelKcal: { marginLeft: 'auto', color: colors.goldBright, fontSize: 16.5, fontWeight: '700' },
-  quantityPanelWarning: { color: colors.danger, fontSize: 13.5, marginTop: 8 },
-  qpAddBtn: { minHeight: 44, marginTop: 12, borderRadius: 8, backgroundColor: colors.gold, alignItems: 'center', justifyContent: 'center' },
-  qpAddBtnDisabled: { backgroundColor: colors.border },
-  qpAddBtnText: { color: colors.bg, fontWeight: '700', fontSize: 15 },
-
-  confirmTitle: { fontSize: 17.5, color: colors.goldBright, fontWeight: '700', marginBottom: 10 },
-  confirmBody: { fontSize: 16.5, color: colors.parchment, lineHeight: 20, textAlign: 'center' },
-  remaining: { color: colors.goldBright, fontWeight: 'bold' },
-  pendingDayScroll: { maxHeight: 220, width: '100%', marginTop: 14, borderTopWidth: 1, borderTopColor: colors.borderSoft, borderStyle: 'dashed', paddingTop: 10 },
-  pendingMealTitle: { fontSize: 10.5, letterSpacing: 0.6, color: colors.muted, marginBottom: 4 },
-  pendingEntryRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, paddingVertical: 4 },
-  pendingEntryName: { flex: 1, color: colors.parchment, fontSize: 14 },
-  pendingEntryKcal: { color: colors.gold, fontSize: 13 },
-  closeWeightBox: { width: '100%', marginTop: 16, paddingTop: 14, borderTopWidth: 1, borderTopColor: colors.borderSoft, borderStyle: 'dashed', alignItems: 'center' },
-  closeWeightLabel: { fontSize: 12.5, color: colors.muted, marginBottom: 8 },
-  closeWeightRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  closeWeightInput: { width: 90, minHeight: 40, backgroundColor: colors.panel2, borderWidth: 1, borderColor: colors.borderSoft, borderRadius: 8, color: colors.parchment, fontSize: 16, textAlign: 'center' },
-  closeWeightUnit: { fontSize: 13, color: colors.muted },
-  confirmActions: { flexDirection: 'row', gap: 8, marginTop: 18, width: '100%' },
-  confirmCancelBtn: { flex: 1, minHeight: 44, borderRadius: 8, backgroundColor: colors.panel2, borderWidth: 1, borderColor: colors.borderSoft, alignItems: 'center', justifyContent: 'center' },
-  confirmCancelText: { color: colors.muted, fontSize: 14 },
-  confirmAcceptBtn: { flex: 1, minHeight: 44, borderRadius: 8, backgroundColor: colors.gold, alignItems: 'center', justifyContent: 'center' },
-  confirmAcceptText: { color: colors.bg, fontWeight: '700', fontSize: 14 },
-
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(8,6,4,0.75)', alignItems: 'center', justifyContent: 'center', padding: 24 },
-  modalCard: { width: '100%', maxWidth: 340, backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.gold, borderRadius: 14, padding: 20, alignItems: 'center' },
-  modalTitle: { fontSize: 20, fontWeight: '700', color: colors.goldBright, marginBottom: 14, textAlign: 'center' },
-  stepperRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16 },
-  stepperBtn: { width: 44, height: 44, borderRadius: 10, borderWidth: 1, borderColor: colors.borderSoft, backgroundColor: colors.panel2, alignItems: 'center', justifyContent: 'center' },
-  stepperBtnText: { color: colors.goldBright, fontSize: 23 },
-  stepperValue: { fontSize: 20, color: colors.parchment, fontWeight: '700', minWidth: 64, textAlign: 'center' },
-  modalKcal: { fontSize: 16.5, color: colors.goldBright, marginLeft: 6 },
-  modalAddBtn: { minHeight: 44, width: '100%', borderRadius: 10, backgroundColor: colors.gold, alignItems: 'center', justifyContent: 'center' },
-  modalAddBtnDisabled: { backgroundColor: colors.border },
-  modalAddBtnText: { color: colors.bg, fontWeight: '700', fontSize: 16.5 },
-  modalCancel: { minHeight: 44, alignItems: 'center', justifyContent: 'center', marginTop: 8 },
-  modalCancelText: { color: colors.muted, fontSize: 15 },
-
-  exerciseModalCard: { borderColor: colors.boostBlue },
-  exerciseModalTitle: { fontSize: 17.5, color: colors.boostBlueBright, marginBottom: 14, fontWeight: '700' },
-
-  exerciseTypeTabs: { flexDirection: 'row', gap: 4, backgroundColor: colors.panel2, borderWidth: 1, borderColor: colors.borderSoft, borderRadius: 8, padding: 3, marginBottom: 14, width: '100%' },
-  exerciseTypeTab: { flex: 1, minHeight: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 6 },
-  exerciseTypeTabActive: { backgroundColor: colors.boostBlue },
-  exerciseTypeTabText: { fontSize: 12.5, color: colors.muted },
-  exerciseTypeTabTextActive: { color: '#e8f2fc', fontWeight: '700' },
-
-  exerciseFieldRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginBottom: 10 },
-  exerciseFieldLabel: { fontSize: 14, color: colors.parchment },
-  exerciseFieldControl: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  exerciseFieldInput: { width: 70, minHeight: 38, backgroundColor: colors.panel2, borderWidth: 1, borderColor: colors.borderSoft, borderRadius: 6, color: colors.parchment, fontSize: 15, textAlign: 'center' },
-  exerciseFieldUnit: { fontSize: 11.5, color: colors.muted },
-
-  exerciseKcalPreview: { textAlign: 'center', fontSize: 19.5, color: colors.boostBlueBright, fontWeight: '700', marginTop: 8, marginBottom: 2 },
-  exerciseSourceNote: { textAlign: 'center', fontSize: 10.5, color: colors.muted, fontStyle: 'italic', marginBottom: 8 },
-
-  exerciseRemoveBtn: { minHeight: 40, alignItems: 'center', justifyContent: 'center', marginTop: 6 },
-  exerciseRemoveBtnText: { color: colors.danger, fontSize: 12.5 },
-
-  celebrateEmoji: { fontSize: 46, marginBottom: 8 },
-  modalCardOnTop: { zIndex: 10, elevation: 10 },
-  celebrateTitle: { fontSize: 21, fontWeight: '700', color: colors.goldBright, marginBottom: 8 },
-  celebrateSub: { fontSize: 16, color: colors.parchment, textAlign: 'center', lineHeight: 19, marginBottom: 16 },
-});
