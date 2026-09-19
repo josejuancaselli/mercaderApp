@@ -32,7 +32,7 @@ const KCAL_PER_KG = 7700;
 
 /* Gimnasio: monto fijo por sesión, sin variables de peso/tiempo/intensidad
    (no existe una fórmula de METs para musculación con la misma certeza que caminata/carrera). */
-const GYM_FIXED_KCAL = 200;
+const GYM_FIXED_KCAL = 100;
 
 /* Ecuación metabólica ACSM (caminata para <8km/h, carrera para >=8km/h ~5mph).
    VO2 en ml/kg/min; kcal/min = VO2 × peso(kg) / 200. */
