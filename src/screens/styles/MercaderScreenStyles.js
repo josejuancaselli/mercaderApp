@@ -57,7 +57,7 @@ export const styles = StyleSheet.create({
   orderEmptyText: { color: colors.muted, fontSize: 15, textAlign: 'center', fontStyle: 'italic' },
   orderScrollFixed: { height: 210 },
   orderRow: { flexDirection: 'row', padding: 10, borderBottomWidth: 1, borderBottomColor: colors.borderSoft },
-  orderName: { color: colors.parchment, fontSize: 16 },
+  orderName: { color: colors.parchment, fontSize: 16, marginTop: 3, marginbottom: 5  },
   orderGramsRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 },
   orderGrams: { color: colors.muted, fontSize: 14, minWidth: 34, textAlign: 'center' },
   orderKcalWrap: { justifyContent: 'center', paddingHorizontal: 6 },
