@@ -1,16 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  Pressable,
-  ScrollView,
-  Modal,
-  ActivityIndicator,
-  Animated,
-  KeyboardAvoidingView,
-  Platform,
-} from 'react-native';
+import { View, Text, TextInput, Pressable, ScrollView, Modal, ActivityIndicator, Animated, KeyboardAvoidingView, Platform, } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import ConfettiCannon from 'react-native-confetti-cannon';
 import { useAuth } from '../auth/AuthContext';
@@ -24,6 +13,7 @@ import { getAllMyIngredients } from '../storage/myIngredients';
 import { CATEGORIES } from '../data/curatedIngredients';
 import { getTopUsage, recordUsage } from '../storage/ingredientUsage';
 import { colors } from '../theme/colors';
+import { acsmKcal, calcMantenimiento, affordInfo, sumKcal, recipeTotalKcal, recipeTotalWeightG } from './helpers/mercaderLogic';
 import { styles } from './styles/MercaderScreenStyles';
 import { useFocusEffect } from '@react-navigation/native';
 
@@ -36,53 +26,6 @@ const GYM_FIXED_KCAL = 200;
 
 /* Ecuación metabólica ACSM (caminata para <8km/h, carrera para >=8km/h ~5mph).
    VO2 en ml/kg/min; kcal/min = VO2 × peso(kg) / 200. */
-function acsmKcal(speedKmh, inclinePct, minutes, weightKg) {
-  if (speedKmh <= 0 || minutes <= 0 || !weightKg) return 0;
-  const speedMmin = (speedKmh * 1000) / 60;
-  const grade = inclinePct / 100;
-  const isRunning = speedKmh >= 8;
-  const vo2 = isRunning
-    ? 0.2 * speedMmin + 0.9 * speedMmin * grade + 3.5
-    : 0.1 * speedMmin + 1.8 * speedMmin * grade + 3.5;
-  const kcalPerMin = (vo2 * weightKg) / 200;
-  return Math.round(kcalPerMin * minutes);
-}
-
-
-function calcMantenimiento(profile) {
-  const { sex, age, weight, height, activity } = profile;
-  const factor = activity === 'moderate' ? 1.375 : 1.2;
-  const base =
-    sex === 'm'
-      ? 10 * weight + 6.25 * height - 5 * age + 5
-      : 10 * weight + 6.25 * height - 5 * age - 161;
-  return Math.round(base * factor);
-}
-
-/**
- * Cuánto de un ingrediente entra todavía con las monedas que quedan hoy.
- * La "unidad de referencia" para el porcentaje tapado es la unidad natural
- * del ingrediente (1 huevo, 1 cucharada) si la tiene, o 100g/ml si no —
- * así la franja gris se calibra contra lo mismo que dice el texto.
- */
-function affordInfo(item, remaining) {
-  const affordG = Math.max(0, (remaining / item.kcalPer100g) * 100);
-  const referenceG = item.unitAmount || 100;
-  const pctCovered = Math.max(0, Math.min(100, 100 - (affordG / referenceG) * 100));
-
-  let affordText;
-  if (item.unitLabel && item.unitAmount) {
-    const affordUnits = Math.floor(affordG / item.unitAmount);
-    affordText = affordUnits > 0
-      ? `Te alcanzan ~${affordUnits} ${item.unitLabel}${affordUnits === 1 ? '' : 's'}`
-      : (affordG > 0 ? `Te alcanza menos de 1 ${item.unitLabel}` : '');
-  } else {
-    affordText = affordG > 0 ? `Te alcanza para ~${Math.round(affordG)}${item.unit === 'ml' ? 'ml' : 'g'}` : '';
-  }
-
-  return { affordG, pctCovered, affordText, tight: affordG > 0 && affordG <= referenceG * 0.3 };
-}
-
 export default function MercaderScreen() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -220,8 +163,6 @@ export default function MercaderScreen() {
   const fillPct = Math.max(0, Math.min(100, (remaining / hardCap) * 100));
   const markerLeftPct = Math.max(0, Math.min(100, ((hardCap - target) / hardCap) * 100));
 
-  const sumKcal = (entries) => entries.reduce((sum, e) => sum + e.kcal, 0);
-
   // Todas las mutaciones de acá siguen el mismo patrón: calculamos el nuevo
   // estado en memoria y lo mostramos YA (setDay/setProfile inmediato); el
   // guardado en Firestore sale disparado de fondo, sin que el toque espere
@@ -251,26 +192,26 @@ export default function MercaderScreen() {
       const ratio = quantityModalAmountG / totalW;
       const newEntries = (!recipe.ingredients?.length)
         ? [{
-            id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-            name: recipe.name,
-            emoji: recipe.emoji || '🍽️',
-            recipeName: recipe.name,
-            amountG: Math.round(quantityModalAmountG),
-            kcal: quantityModalKcal,
-            mealType: activeMeal,
-            addedAt: Date.now(),
-          }]
+          id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          name: recipe.name,
+          emoji: recipe.emoji || '🍽️',
+          recipeName: recipe.name,
+          amountG: Math.round(quantityModalAmountG),
+          kcal: quantityModalKcal,
+          mealType: activeMeal,
+          addedAt: Date.now(),
+        }]
         : recipe.ingredients.map((ing, idx) => ({
-            id: `${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 6)}`,
-            name: ing.name,
-            emoji: recipe.emoji || '🍽️',
-            recipeName: recipe.name,
-            kcalPer100g: ing.kcalPer100g,
-            amountG: Math.round(ing.amountG * ratio),
-            kcal: Math.round(ing.kcal * ratio),
-            mealType: activeMeal,
-            addedAt: Date.now(),
-          }));
+          id: `${Date.now()}-${idx}-${Math.random().toString(36).slice(2, 6)}`,
+          name: ing.name,
+          emoji: recipe.emoji || '🍽️',
+          recipeName: recipe.name,
+          kcalPer100g: ing.kcalPer100g,
+          amountG: Math.round(ing.amountG * ratio),
+          kcal: Math.round(ing.kcal * ratio),
+          mealType: activeMeal,
+          addedAt: Date.now(),
+        }));
       const entries = [...day.entries, ...newEntries];
       const updated = { ...day, entries, kcalConsumed: sumKcal(entries) };
       setDay(updated);
@@ -305,18 +246,6 @@ export default function MercaderScreen() {
     }).catch((e) => console.warn('No se pudo registrar el uso:', e.message));
     setQuantityModalItem(null);
     setQuantityModalAmount('');
-  };
-
-  const recipeTotalKcal = (recipe) =>
-    recipe.mode === 'simple' ? recipe.totalKcal || 0 : (recipe.ingredients || []).reduce((s, i) => s + i.kcal, 0);
-
-  // Peso total del lote: en 'detailed' se calcula solo (suma de los ingredientes);
-  // en 'simple' depende del campo opcional cargado en Recetas. Sin este dato la
-  // receta no es porcionable y se agrega siempre completa (ver addRecipeToMeal).
-  const recipeTotalWeightG = (recipe) => {
-    if (recipe.mode === 'simple') return recipe.totalWeightG || null;
-    const sum = (recipe.ingredients || []).reduce((s, i) => s + (i.amountG || 0), 0);
-    return sum > 0 ? sum : null;
   };
 
   // Abre el mismo modal de cantidad que usan los ingredientes de la grilla, pero
@@ -572,395 +501,388 @@ export default function MercaderScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
-      <ScrollView ref={scrollRef} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        {/* ---- Título de la página ---- */}
-        <View style={[styles.shopTitleRow, styles.shopTitleRowFirst]}>
-          <View style={styles.shopTitleLine} />
-          <Text style={styles.shopTitleText}>Mercado de calorías</Text>
-          <View style={styles.shopTitleLine} />
-        </View>
-
-        {/* ---- Bolsa de monedas + botón de guardar en el banco ---- */}
-        <View style={styles.topRow}>
-          <View style={[styles.pouchBar, boosted && styles.pouchBarBoosted, styles.pouchBarInRow]}>
-            <View style={styles.pouchRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.pouchLabel}>MONEDAS DE HOY</Text>
-                <Text style={[styles.pouchCount, boosted && styles.pouchCountBoosted]}>
-                  {remaining.toLocaleString('es-AR')}{' '}
-                  <Text style={styles.pouchMax}>/ {hardCap.toLocaleString('es-AR')}</Text>
-                </Text>
-              </View>
-              <Pressable style={({ pressed }) => [styles.exerciseFab, pressed && styles.pressedFeedback]} onPress={() => setExerciseOpen(true)}>
-                <Text style={styles.exerciseFabIcon}>⚡</Text>
-                {boosted && (
-                  <View style={styles.exerciseFabBadge}>
-                    <Text style={styles.exerciseFabBadgeText}>+{day.exerciseBoostKcal}</Text>
-                  </View>
-                )}
-              </Pressable>
-            </View>
-
-            <View style={styles.pouchTrack}>
-              <View
-                style={[
-                  styles.pouchFill,
-                  { width: `${fillPct}%`, backgroundColor: inAmberZone ? colors.gold : colors.availableGreen },
-                ]}
-              />
-              <View style={[styles.deficitMarker, { left: `${markerLeftPct}%` }]} />
-            </View>
-            {/* <View style={styles.zoneCaption}>
-            <Text style={styles.zoneCaptionText}>Déficit ({target})</Text>
-            <Text style={styles.zoneCaptionText}>Mantenimiento ({mantenimiento})</Text>
-          </View> */}
-
-            {boosted && <Text style={styles.boostBanner}>⚡ ¡Hoy tenés más monedas!</Text>}
-
-            <Text style={styles.bankInlineText}>
-              🏦{' '}
-              <Text style={styles.kcalHighlight}>
-                {kcalUntilNextKg.toLocaleString('es-AR')} / 7700 
-              </Text>
-              {' '} kcal para tu próximo kg
-            </Text>
+        <ScrollView ref={scrollRef} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+          {/* ---- Título de la página ---- */}
+          <View style={[styles.shopTitleRow, styles.shopTitleRowFirst]}>
+            <View style={styles.shopTitleLine} />
+            <Text style={styles.shopTitleText}>Mercado de calorías</Text>
+            <View style={styles.shopTitleLine} />
           </View>
 
-          <Pressable
-            style={({ pressed }) => [styles.saveBankSquare, pressed && styles.pressedFeedback]}
-            onPress={() => setConfirmCloseOpen(true)}
-          >
-            <Text style={styles.saveBankSquareIcon}>🏦</Text>
-            <Text style={styles.saveBankSquareTitle}>Guardar en el Banco</Text>
-            {/* <Text style={styles.saveBankSquarePreview}>
-              {remaining > 0 ? `Si cerrás ahora: +${remaining} kcal` : 'Nada para guardar todavía'}
-            </Text> */}
-          </Pressable>
-        </View>
-
-        {/* ---- Separador antes del pedido, como en el mockup ---- */}
-        <View style={styles.shopTitleRow}>
-          <View style={styles.shopTitleLine} />
-          <Text style={styles.shopTitleText}>Acá va tu compra</Text>
-          <View style={styles.shopTitleLine} />
-        </View>
-
-        {/* ---- Comida: tabs + pedido, como una sola tarjeta ---- */}
-        <View style={styles.orderCard}>
-          <View style={styles.mealTabs}>
-            {MEALS.map((meal) => (
-              <Pressable
-                key={meal}
-                style={({ pressed }) => [styles.mealTab, activeMeal === meal && styles.mealTabActive, pressed && styles.pressedFeedback]}
-                onPress={() => setActiveMeal(meal)}
-              >
-                <Text style={[styles.mealTabText, activeMeal === meal && styles.mealTabTextActive]}>
-                  {meal}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-
-          <ScrollView style={styles.orderScrollFixed} nestedScrollEnabled showsVerticalScrollIndicator>
-            {entriesForMeal.length === 0 ? (
-              <View style={styles.orderEmpty}>
-                <Text style={styles.orderEmptyText}>Acá va tu pedido — todavía no agregaste nada.</Text>
-              </View>
-            ) : (
-              <>
-                {entriesForMeal.map((entry) => (
-                  <View key={entry.id} style={styles.orderRow}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.orderName}>
-                        {entry.emoji || '🍽️'} {entry.name}
-                        {entry.brand ? ` · ${entry.brand}` : ''}
-                        {entry.recipeName ? ` · ${entry.recipeName}` : ''}
-                      </Text>
-                      {entry.kcalPer100g != null && (
-                        <View style={styles.orderGramsRow}>
-                          <Pressable
-                            style={({ pressed }) => [styles.miniBtn, !canStep(entry, -10) && styles.miniBtnDisabled, pressed && styles.pressedFeedback]}
-                            onPress={() => stepEntry(entry, -10)}
-                            disabled={!canStep(entry, -10)}
-                          >
-                            <Text style={styles.miniBtnText}>−</Text>
-                          </Pressable>
-                          <Text style={styles.orderGrams}>{entry.amountG}g</Text>
-                          <Pressable
-                            style={({ pressed }) => [styles.miniBtn, !canStep(entry, 10) && styles.miniBtnDisabled, pressed && styles.pressedFeedback]}
-                            onPress={() => stepEntry(entry, 10)}
-                            disabled={!canStep(entry, 10)}
-                          >
-                            <Text style={styles.miniBtnText}>+</Text>
-                          </Pressable>
-                        </View>
-                      )}
-                    </View>
-                    <View style={styles.orderKcalWrap}>
-                      <Text style={styles.orderKcalBig}>{entry.kcal} kcal</Text>
-                    </View>
-                    <Pressable style={styles.orderRemove} onPress={() => handleRemoveEntry(entry.id)}>
-                      <Text style={styles.orderRemoveText}>✕</Text>
-                    </Pressable>
-                  </View>
-                ))}
-                <View style={styles.orderTotalRow}>
-                  <Text style={styles.orderTotalLabel}>Total</Text>
-                  <View style={styles.orderKcalWrap}>
-                    <Text style={styles.orderKcalBig}>{mealTotalKcal} kcal</Text>
-                  </View>
-                </View>
-              </>
-            )}
-          </ScrollView>
-        </View>
-
-        {/* ---- Separador entre el pedido y los ingredientes, como en el mockup ---- */}
-        <View style={styles.shopTitleRow}>
-          <View style={styles.shopTitleLine} />
-          <Text style={styles.shopTitleText}>{activeMeal}</Text>
-          <View style={styles.shopTitleLine} />
-        </View>
-
-        {/* ---- Ingredientes / Recetas / Buscar ---- */}
-        <View style={styles.ingredientsCard}>
-          <View style={styles.subTabs}>
-            <Pressable
-              style={({ pressed }) => [styles.subTab, activeSubTab === 'sugeridos' && styles.subTabActive, pressed && styles.pressedFeedback]}
-              onPress={() => setActiveSubTab('sugeridos')}
-            >
-              <Text style={[styles.subTabText, activeSubTab === 'sugeridos' && styles.subTabTextActive]}>Ingredientes</Text>
-            </Pressable>
-            <Pressable
-              style={({ pressed }) => [styles.subTab, activeSubTab === 'guardadas' && styles.subTabActive, pressed && styles.pressedFeedback]}
-              onPress={() => setActiveSubTab('guardadas')}
-            >
-              <Text style={[styles.subTabText, activeSubTab === 'guardadas' && styles.subTabTextActive]}>Recetas</Text>
-            </Pressable>
-            <Pressable
-              style={({ pressed }) => [styles.subTab, activeSubTab === 'buscar' && styles.subTabActive, pressed && styles.pressedFeedback]}
-              onPress={() => setActiveSubTab('buscar')}
-            >
-              <Text style={[styles.subTabText, activeSubTab === 'buscar' && styles.subTabTextActive]}>Buscar</Text>
-            </Pressable>
-          </View>
-
-          {activeSubTab === null && (
-            <View style={styles.ingredientsEmpty}>
-              <Text style={styles.ingredientsEmptyText}>Elegí una opción para agregar algo a esta comida</Text>
-            </View>
-          )}
-
-          {activeSubTab === 'sugeridos' && (
-            <>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRow}>
-                {favorites.length > 0 && (
-                  <Pressable
-                    style={({ pressed }) => [styles.categoryChip, activeCategory === 'Favoritos' && styles.categoryChipActive, pressed && styles.pressedFeedback]}
-                    onPress={() => selectCategory('Favoritos')}
-                  >
-                    <Text style={[styles.categoryChipText, activeCategory === 'Favoritos' && styles.categoryChipTextActive]}>
-                      Favoritos
-                    </Text>
-                  </Pressable>
-                )}
-                {CATEGORIES.map((cat) => (
-                  <Pressable
-                    key={cat}
-                    style={({ pressed }) => [styles.categoryChip, activeCategory === cat && styles.categoryChipActive, pressed && styles.pressedFeedback]}
-                    onPress={() => selectCategory(cat)}
-                  >
-                    <Text style={[styles.categoryChipText, activeCategory === cat && styles.categoryChipTextActive]}>
-                      {cat}
-                    </Text>
-                  </Pressable>
-                ))}
-              </ScrollView>
-
-              {activeCategory === null ? (
-                <View style={styles.ingredientsEmpty}>
-                  <Text style={styles.ingredientsEmptyText}>Elegí una categoría para ver los ingredientes</Text>
-                </View>
-              ) : (
-                <ScrollView style={styles.gridScroll} nestedScrollEnabled showsVerticalScrollIndicator>
-                  <View style={styles.grid}>
-                    {categoryItems.map((item) => {
-                      const { pctCovered, affordText, tight } = affordInfo(item, remaining);
-                      const blocked = remaining <= 0;
-                      return (
-                        <Pressable
-                          key={item.id}
-                          style={({ pressed }) => [styles.item, pressed && !blocked && styles.pressedFeedback]}
-                          onPress={() => openQuantityModal(item)}
-                          disabled={blocked}
-                        >
-                          <View>
-                            <Text style={styles.itemEmoji}>{item.emoji || '🍽️'}</Text>
-                            <Text style={styles.itemName}>{item.name}</Text>
-                            {item.brand && <Text style={styles.itemBrand}>{item.brand}</Text>}
-                            <Text style={styles.itemPrice}>● {Math.round(item.kcalPer100g)} kcal / 100{item.unit === 'ml' ? 'ml' : 'g'}</Text>
-                            {!!affordText && (
-                              <Text style={[styles.itemAfford, tight && styles.itemAffordTight]}>{affordText}</Text>
-                            )}
-                          </View>
-                          {pctCovered > 0 && (
-                            <View style={[styles.itemFade, { height: `${pctCovered}%` }]}>
-                              <Text style={[styles.itemEmoji, styles.itemFadeText]}>{item.emoji || '🍽️'}</Text>
-                              <Text style={[styles.itemName, styles.itemFadeText]}>{item.name}</Text>
-                              <Text style={[styles.itemPrice, styles.itemFadeText]}>● {Math.round(item.kcalPer100g)} kcal / 100{item.unit === 'ml' ? 'ml' : 'g'}</Text>
-                            </View>
-                          )}
-                          {blocked && (
-                            <View style={styles.lockedOverlay}>
-                              <Text style={styles.lockedOverlayText}>SIN MONEDAS</Text>
-                              <Text style={styles.lockedOverlayText}>PARA ESTO</Text>
-                            </View>
-                          )}
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                </ScrollView>
-              )}
-            </>
-          )}
-
-          {activeSubTab === 'guardadas' && (
-            recipes.length === 0 ? (
-              <View style={styles.orderEmpty}>
-                <Text style={styles.orderEmptyText}>Todavía no guardaste ninguna receta. Andá a la pestaña Recetas para crear la primera.</Text>
-              </View>
-            ) : (
-              <View style={styles.grid}>
-                {recipes.map((recipe) => {
-                  const total = recipeTotalKcal(recipe);
-                  const locked = total > remaining;
-                  const canPortion = recipe.scalable && !!recipeTotalWeightG(recipe);
-                  return (
-                    <Pressable
-                      key={recipe.id}
-                      style={({ pressed }) => [styles.item, locked && styles.itemLocked, pressed && styles.pressedFeedback]}
-                      onPress={() => (canPortion && !locked ? openRecipeQuantityModal(recipe) : addRecipeToMeal(recipe))}
-                      disabled={locked}
-                    >
-                      <Text style={[styles.itemEmoji, locked && styles.itemTextLocked]}>{recipe.emoji || '🍽️'}</Text>
-                      <Text style={[styles.itemName, locked && styles.itemTextLocked]}>{recipe.name}</Text>
-                      <Text style={[styles.itemGrams, locked && styles.itemTextLocked]}>
-                        {recipe.scalable
-                          ? (recipeTotalWeightG(recipe) ? `${recipeTotalWeightG(recipe)} g totales` : 'Preparación grande')
-                          : (recipe.mode === 'simple' ? 'Total manual' : `${recipe.ingredients?.length || 0} ingredientes`)}
-                      </Text>
-                      <Text style={[styles.itemPrice, locked && styles.itemPriceLocked]}>● {total} kcal</Text>
-                      {locked && (
-                        <View style={styles.lockedOverlay}>
-                          <Text style={styles.lockedOverlayText}>NO ALCANZA</Text>
-                        </View>
-                      )}
-                    </Pressable>
-                  );
-                })}
-              </View>
-            )
-          )}
-
-          {activeSubTab === 'buscar' && (
-            <View>
-              <View style={styles.searchRow}>
-                <TextInput
-                  style={styles.searchInput}
-                  placeholder="Ej: arroz, aceite, banana..."
-                  placeholderTextColor={colors.muted}
-                  value={searchText}
-                  onFocus={() => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 250)}
-                  onChangeText={(t) => {
-                    setSearchText(t);
-                    setSelectedSearchItem(null);
-                    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
-                  }}
-                />
-              </View>
-
-              {searchText.trim().length > 0 && searchResults.length === 0 && (
-                <Text style={styles.searchEmptyText}>No se encontraron ingredientes.</Text>
-              )}
-
-              {searchResults.map((item) => (
-                <Pressable key={item.id} style={styles.searchResultRow} onPress={() => selectSearchItem(item)}>
-                  <Text style={styles.searchResultName}>
-                    {item.emoji || '🍽️'} {item.name}{item.brand ? ` · ${item.brand}` : ''}
+          {/* ---- Bolsa de monedas + botón de guardar en el banco ---- */}
+          <View style={styles.topRow}>
+            <View style={[styles.pouchBar, boosted && styles.pouchBarBoosted, styles.pouchBarInRow]}>
+              <View style={styles.pouchRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.pouchLabel}>MONEDAS DE HOY</Text>
+                  <Text style={[styles.pouchCount, boosted && styles.pouchCountBoosted]}>
+                    {remaining.toLocaleString('es-AR')}{' '}
+                    <Text style={styles.pouchMax}>/ {hardCap.toLocaleString('es-AR')}</Text>
                   </Text>
-                  <Text style={styles.searchResultKcal}>
-                    {item.unitLabel
-                      ? `1 ${item.unitLabel} · ${Math.round((item.kcalPer100g * item.unitAmount) / 100)} kcal`
-                      : `${Math.round(item.kcalPer100g)} kcal/100g`}
+                </View>
+                <Pressable style={({ pressed }) => [styles.exerciseFab, pressed && styles.pressedFeedback]} onPress={() => setExerciseOpen(true)}>
+                  <Text style={styles.exerciseFabIcon}>⚡</Text>
+                  {boosted && (
+                    <View style={styles.exerciseFabBadge}>
+                      <Text style={styles.exerciseFabBadgeText}>+{day.exerciseBoostKcal}</Text>
+                    </View>
+                  )}
+                </Pressable>
+              </View>
+
+              <View style={styles.pouchTrack}>
+                <View
+                  style={[
+                    styles.pouchFill,
+                    { width: `${fillPct}%`, backgroundColor: inAmberZone ? colors.gold : colors.availableGreen },
+                  ]}
+                />
+                <View style={[styles.deficitMarker, { left: `${markerLeftPct}%` }]} />
+              </View>
+
+              {boosted && <Text style={styles.boostBanner}>⚡ ¡Hoy tenés más monedas!</Text>}
+
+              <Text style={styles.bankInlineText}>
+                🏦{' '}
+                <Text style={styles.kcalHighlight}>
+                  {kcalUntilNextKg.toLocaleString('es-AR')} / 7700
+                </Text>
+                {' '} kcal para tu próximo kg
+              </Text>
+            </View>
+
+            <Pressable
+              style={({ pressed }) => [styles.saveBankSquare, pressed && styles.pressedFeedback]}
+              onPress={() => setConfirmCloseOpen(true)}
+            >
+              <Text style={styles.saveBankSquareIcon}>🏦</Text>
+              <Text style={styles.saveBankSquareTitle}>Guardar en el Banco</Text>
+            </Pressable>
+          </View>
+
+          {/* ---- Separador antes del pedido, como en el mockup ---- */}
+          <View style={styles.shopTitleRow}>
+            <View style={styles.shopTitleLine} />
+            <Text style={styles.shopTitleText}>Acá va tu compra</Text>
+            <View style={styles.shopTitleLine} />
+          </View>
+
+          {/* ---- Comida: tabs + pedido, como una sola tarjeta ---- */}
+          <View style={styles.orderCard}>
+            <View style={styles.mealTabs}>
+              {MEALS.map((meal) => (
+                <Pressable
+                  key={meal}
+                  style={({ pressed }) => [styles.mealTab, activeMeal === meal && styles.mealTabActive, pressed && styles.pressedFeedback]}
+                  onPress={() => setActiveMeal(meal)}
+                >
+                  <Text style={[styles.mealTabText, activeMeal === meal && styles.mealTabTextActive]}>
+                    {meal}
                   </Text>
                 </Pressable>
               ))}
+            </View>
 
-              {selectedSearchItem && (
-                <View style={styles.quantityPanel}>
-                  <Text style={styles.quantityPanelName}>
-                    {selectedSearchItem.emoji || '🍽️'} {selectedSearchItem.name}
-                  </Text>
-                  {selectedSearchItem.unitLabel && (
-                    <View style={styles.exerciseTypeTabs}>
-                      <Pressable
-                        style={[styles.exerciseTypeTab, searchUnitMode === 'unit' && styles.exerciseTypeTabActive]}
-                        onPress={() => { setSearchUnitMode('unit'); setSearchAmount(''); }}
-                      >
-                        <Text style={[styles.exerciseTypeTabText, searchUnitMode === 'unit' && styles.exerciseTypeTabTextActive]}>
-                          {selectedSearchItem.unitLabel.charAt(0).toUpperCase() + selectedSearchItem.unitLabel.slice(1)}s
+            <ScrollView style={styles.orderScrollFixed} nestedScrollEnabled showsVerticalScrollIndicator>
+              {entriesForMeal.length === 0 ? (
+                <View style={styles.orderEmpty}>
+                  <Text style={styles.orderEmptyText}>Acá va tu pedido — todavía no agregaste nada.</Text>
+                </View>
+              ) : (
+                <>
+                  {entriesForMeal.map((entry) => (
+                    <View key={entry.id} style={styles.orderRow}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.orderName}>
+                          {entry.emoji || '🍽️'} {entry.name}
+                          {entry.brand ? ` · ${entry.brand}` : ''}
+                          {entry.recipeName ? ` · ${entry.recipeName}` : ''}
                         </Text>
-                      </Pressable>
-                      <Pressable
-                        style={[styles.exerciseTypeTab, searchUnitMode === 'g' && styles.exerciseTypeTabActive]}
-                        onPress={() => { setSearchUnitMode('g'); setSearchAmount(''); }}
-                      >
-                        <Text style={[styles.exerciseTypeTabText, searchUnitMode === 'g' && styles.exerciseTypeTabTextActive]}>
-                          Gramos
-                        </Text>
+                        {entry.kcalPer100g != null && (
+                          <View style={styles.orderGramsRow}>
+                            <Pressable
+                              style={({ pressed }) => [styles.miniBtn, !canStep(entry, -10) && styles.miniBtnDisabled, pressed && styles.pressedFeedback]}
+                              onPress={() => stepEntry(entry, -10)}
+                              disabled={!canStep(entry, -10)}
+                            >
+                              <Text style={styles.miniBtnText}>−</Text>
+                            </Pressable>
+                            <Text style={styles.orderGrams}>{entry.amountG}g</Text>
+                            <Pressable
+                              style={({ pressed }) => [styles.miniBtn, !canStep(entry, 10) && styles.miniBtnDisabled, pressed && styles.pressedFeedback]}
+                              onPress={() => stepEntry(entry, 10)}
+                              disabled={!canStep(entry, 10)}
+                            >
+                              <Text style={styles.miniBtnText}>+</Text>
+                            </Pressable>
+                          </View>
+                        )}
+                      </View>
+                      <View style={styles.orderKcalWrap}>
+                        <Text style={styles.orderKcalBig}>{entry.kcal} kcal</Text>
+                      </View>
+                      <Pressable style={styles.orderRemove} onPress={() => handleRemoveEntry(entry.id)}>
+                        <Text style={styles.orderRemoveText}>✕</Text>
                       </Pressable>
                     </View>
-                  )}
-                  <View style={styles.quantityPanelRow}>
-                    <TextInput
-                      style={styles.quantityPanelInput}
-                      keyboardType="numeric"
-                      placeholder="0"
-                      placeholderTextColor={colors.muted}
-                      value={searchAmount}
-                      onChangeText={setSearchAmount}
-                      autoFocus
-                    />
-                    <Text style={styles.quantityPanelUnit}>
-                      {searchUnitMode === 'unit' ? selectedSearchItem.unitLabel : 'gramos'}
-                    </Text>
-                    <Text style={styles.quantityPanelKcal}>{searchKcal} kcal</Text>
+                  ))}
+                  <View style={styles.orderTotalRow}>
+                    <Text style={styles.orderTotalLabel}>Total</Text>
+                    <View style={styles.orderKcalWrap}>
+                      <Text style={styles.orderKcalBig}>{mealTotalKcal} kcal</Text>
+                    </View>
                   </View>
-                  {searchUnitMode === 'unit' && searchAmountNum > 0 && (
-                    <Text style={styles.exerciseSourceNote}>≈ {Math.round(searchAmountG)} g en total</Text>
-                  )}
-                  {searchAmountNum > 0 && searchKcal > remaining && (
-                    <Text style={styles.quantityPanelWarning}>No alcanza con tus monedas restantes.</Text>
-                  )}
-                  <Pressable
-                    style={({ pressed }) => [
-                      styles.qpAddBtn,
-                      (searchAmountNum <= 0 || searchKcal > remaining) && styles.qpAddBtnDisabled,
-                      pressed && styles.pressedFeedback,
-                    ]}
-                    onPress={addSearchItem}
-                    disabled={searchAmountNum <= 0 || searchKcal > remaining}
-                  >
-                    <Text style={styles.qpAddBtnText}>Agregar</Text>
-                  </Pressable>
-                </View>
+                </>
               )}
-            </View>
-          )}
-        </View>
+            </ScrollView>
+          </View>
 
-      </ScrollView>
+          {/* ---- Separador entre el pedido y los ingredientes, como en el mockup ---- */}
+          <View style={styles.shopTitleRow}>
+            <View style={styles.shopTitleLine} />
+            <Text style={styles.shopTitleText}>{activeMeal}</Text>
+            <View style={styles.shopTitleLine} />
+          </View>
+
+          {/* ---- Ingredientes / Recetas / Buscar ---- */}
+          <View style={styles.ingredientsCard}>
+            <View style={styles.subTabs}>
+              <Pressable
+                style={({ pressed }) => [styles.subTab, activeSubTab === 'sugeridos' && styles.subTabActive, pressed && styles.pressedFeedback]}
+                onPress={() => setActiveSubTab('sugeridos')}
+              >
+                <Text style={[styles.subTabText, activeSubTab === 'sugeridos' && styles.subTabTextActive]}>Ingredientes</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [styles.subTab, activeSubTab === 'guardadas' && styles.subTabActive, pressed && styles.pressedFeedback]}
+                onPress={() => setActiveSubTab('guardadas')}
+              >
+                <Text style={[styles.subTabText, activeSubTab === 'guardadas' && styles.subTabTextActive]}>Recetas</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [styles.subTab, activeSubTab === 'buscar' && styles.subTabActive, pressed && styles.pressedFeedback]}
+                onPress={() => setActiveSubTab('buscar')}
+              >
+                <Text style={[styles.subTabText, activeSubTab === 'buscar' && styles.subTabTextActive]}>Buscar</Text>
+              </Pressable>
+            </View>
+
+            {activeSubTab === null && (
+              <View style={styles.ingredientsEmpty}>
+                <Text style={styles.ingredientsEmptyText}>Elegí una opción para agregar algo a esta comida</Text>
+              </View>
+            )}
+
+            {activeSubTab === 'sugeridos' && (
+              <>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRow}>
+                  {favorites.length > 0 && (
+                    <Pressable
+                      style={({ pressed }) => [styles.categoryChip, activeCategory === 'Favoritos' && styles.categoryChipActive, pressed && styles.pressedFeedback]}
+                      onPress={() => selectCategory('Favoritos')}
+                    >
+                      <Text style={[styles.categoryChipText, activeCategory === 'Favoritos' && styles.categoryChipTextActive]}>
+                        Favoritos
+                      </Text>
+                    </Pressable>
+                  )}
+                  {CATEGORIES.map((cat) => (
+                    <Pressable
+                      key={cat}
+                      style={({ pressed }) => [styles.categoryChip, activeCategory === cat && styles.categoryChipActive, pressed && styles.pressedFeedback]}
+                      onPress={() => selectCategory(cat)}
+                    >
+                      <Text style={[styles.categoryChipText, activeCategory === cat && styles.categoryChipTextActive]}>
+                        {cat}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+
+                {activeCategory === null ? (
+                  <View style={styles.ingredientsEmpty}>
+                    <Text style={styles.ingredientsEmptyText}>Elegí una categoría para ver los ingredientes</Text>
+                  </View>
+                ) : (
+                  <ScrollView style={styles.gridScroll} nestedScrollEnabled showsVerticalScrollIndicator>
+                    <View style={styles.grid}>
+                      {categoryItems.map((item) => {
+                        const { pctCovered, affordText, tight } = affordInfo(item, remaining);
+                        const blocked = remaining <= 0;
+                        return (
+                          <Pressable
+                            key={item.id}
+                            style={({ pressed }) => [styles.item, pressed && !blocked && styles.pressedFeedback]}
+                            onPress={() => openQuantityModal(item)}
+                            disabled={blocked}
+                          >
+                            <View>
+                              <Text style={styles.itemEmoji}>{item.emoji || '🍽️'}</Text>
+                              <Text style={styles.itemName}>{item.name}</Text>
+                              {item.brand && <Text style={styles.itemBrand}>{item.brand}</Text>}
+                              <Text style={styles.itemPrice}>● {Math.round(item.kcalPer100g)} kcal / 100{item.unit === 'ml' ? 'ml' : 'g'}</Text>
+                              {!!affordText && (
+                                <Text style={[styles.itemAfford, tight && styles.itemAffordTight]}>{affordText}</Text>
+                              )}
+                            </View>
+                            {pctCovered > 0 && (
+                              <View style={[styles.itemFade, { height: `${pctCovered}%` }]}>
+                                <Text style={[styles.itemEmoji, styles.itemFadeText]}>{item.emoji || '🍽️'}</Text>
+                                <Text style={[styles.itemName, styles.itemFadeText]}>{item.name}</Text>
+                                <Text style={[styles.itemPrice, styles.itemFadeText]}>● {Math.round(item.kcalPer100g)} kcal / 100{item.unit === 'ml' ? 'ml' : 'g'}</Text>
+                              </View>
+                            )}
+                            {blocked && (
+                              <View style={styles.lockedOverlay}>
+                                <Text style={styles.lockedOverlayText}>SIN MONEDAS</Text>
+                                <Text style={styles.lockedOverlayText}>PARA ESTO</Text>
+                              </View>
+                            )}
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  </ScrollView>
+                )}
+              </>
+            )}
+
+            {activeSubTab === 'guardadas' && (
+              recipes.length === 0 ? (
+                <View style={styles.orderEmpty}>
+                  <Text style={styles.orderEmptyText}>Todavía no guardaste ninguna receta. Andá a la pestaña Recetas para crear la primera.</Text>
+                </View>
+              ) : (
+                <View style={styles.grid}>
+                  {recipes.map((recipe) => {
+                    const total = recipeTotalKcal(recipe);
+                    const locked = total > remaining;
+                    const canPortion = recipe.scalable && !!recipeTotalWeightG(recipe);
+                    return (
+                      <Pressable
+                        key={recipe.id}
+                        style={({ pressed }) => [styles.item, locked && styles.itemLocked, pressed && styles.pressedFeedback]}
+                        onPress={() => (canPortion && !locked ? openRecipeQuantityModal(recipe) : addRecipeToMeal(recipe))}
+                        disabled={locked}
+                      >
+                        <Text style={[styles.itemEmoji, locked && styles.itemTextLocked]}>{recipe.emoji || '🍽️'}</Text>
+                        <Text style={[styles.itemName, locked && styles.itemTextLocked]}>{recipe.name}</Text>
+                        <Text style={[styles.itemGrams, locked && styles.itemTextLocked]}>
+                          {recipe.scalable
+                            ? (recipeTotalWeightG(recipe) ? `${recipeTotalWeightG(recipe)} g totales` : 'Preparación grande')
+                            : (recipe.mode === 'simple' ? 'Total manual' : `${recipe.ingredients?.length || 0} ingredientes`)}
+                        </Text>
+                        <Text style={[styles.itemPrice, locked && styles.itemPriceLocked]}>● {total} kcal</Text>
+                        {locked && (
+                          <View style={styles.lockedOverlay}>
+                            <Text style={styles.lockedOverlayText}>NO ALCANZA</Text>
+                          </View>
+                        )}
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              )
+            )}
+
+            {activeSubTab === 'buscar' && (
+              <View>
+                <View style={styles.searchRow}>
+                  <TextInput
+                    style={styles.searchInput}
+                    placeholder="Ej: arroz, aceite, banana..."
+                    placeholderTextColor={colors.muted}
+                    value={searchText}
+                    onFocus={() => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 250)}
+                    onChangeText={(t) => {
+                      setSearchText(t);
+                      setSelectedSearchItem(null);
+                      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
+                    }}
+                  />
+                </View>
+
+                {searchText.trim().length > 0 && searchResults.length === 0 && (
+                  <Text style={styles.searchEmptyText}>No se encontraron ingredientes.</Text>
+                )}
+
+                {searchResults.map((item) => (
+                  <Pressable key={item.id} style={styles.searchResultRow} onPress={() => selectSearchItem(item)}>
+                    <Text style={styles.searchResultName}>
+                      {item.emoji || '🍽️'} {item.name}{item.brand ? ` · ${item.brand}` : ''}
+                    </Text>
+                    <Text style={styles.searchResultKcal}>
+                      {item.unitLabel
+                        ? `1 ${item.unitLabel} · ${Math.round((item.kcalPer100g * item.unitAmount) / 100)} kcal`
+                        : `${Math.round(item.kcalPer100g)} kcal/100g`}
+                    </Text>
+                  </Pressable>
+                ))}
+
+                {selectedSearchItem && (
+                  <View style={styles.quantityPanel}>
+                    <Text style={styles.quantityPanelName}>
+                      {selectedSearchItem.emoji || '🍽️'} {selectedSearchItem.name}
+                    </Text>
+                    {selectedSearchItem.unitLabel && (
+                      <View style={styles.exerciseTypeTabs}>
+                        <Pressable
+                          style={[styles.exerciseTypeTab, searchUnitMode === 'unit' && styles.exerciseTypeTabActive]}
+                          onPress={() => { setSearchUnitMode('unit'); setSearchAmount(''); }}
+                        >
+                          <Text style={[styles.exerciseTypeTabText, searchUnitMode === 'unit' && styles.exerciseTypeTabTextActive]}>
+                            {selectedSearchItem.unitLabel.charAt(0).toUpperCase() + selectedSearchItem.unitLabel.slice(1)}s
+                          </Text>
+                        </Pressable>
+                        <Pressable
+                          style={[styles.exerciseTypeTab, searchUnitMode === 'g' && styles.exerciseTypeTabActive]}
+                          onPress={() => { setSearchUnitMode('g'); setSearchAmount(''); }}
+                        >
+                          <Text style={[styles.exerciseTypeTabText, searchUnitMode === 'g' && styles.exerciseTypeTabTextActive]}>
+                            Gramos
+                          </Text>
+                        </Pressable>
+                      </View>
+                    )}
+                    <View style={styles.quantityPanelRow}>
+                      <TextInput
+                        style={styles.quantityPanelInput}
+                        keyboardType="numeric"
+                        placeholder="0"
+                        placeholderTextColor={colors.muted}
+                        value={searchAmount}
+                        onChangeText={setSearchAmount}
+                        autoFocus
+                      />
+                      <Text style={styles.quantityPanelUnit}>
+                        {searchUnitMode === 'unit' ? selectedSearchItem.unitLabel : 'gramos'}
+                      </Text>
+                      <Text style={styles.quantityPanelKcal}>{searchKcal} kcal</Text>
+                    </View>
+                    {searchUnitMode === 'unit' && searchAmountNum > 0 && (
+                      <Text style={styles.exerciseSourceNote}>≈ {Math.round(searchAmountG)} g en total</Text>
+                    )}
+                    {searchAmountNum > 0 && searchKcal > remaining && (
+                      <Text style={styles.quantityPanelWarning}>No alcanza con tus monedas restantes.</Text>
+                    )}
+                    <Pressable
+                      style={({ pressed }) => [
+                        styles.qpAddBtn,
+                        (searchAmountNum <= 0 || searchKcal > remaining) && styles.qpAddBtnDisabled,
+                        pressed && styles.pressedFeedback,
+                      ]}
+                      onPress={addSearchItem}
+                      disabled={searchAmountNum <= 0 || searchKcal > remaining}
+                    >
+                      <Text style={styles.qpAddBtnText}>Agregar</Text>
+                    </Pressable>
+                  </View>
+                )}
+              </View>
+            )}
+          </View>
+
+        </ScrollView>
       </KeyboardAvoidingView>
 
       {/* ---- Cantidad al elegir un ingrediente de la grilla ---- */}
@@ -1030,7 +952,7 @@ export default function MercaderScreen() {
       </Modal>
 
       {/* ---- Aviso de día anterior sin cerrar ---- */}
-      <Modal visible={!!pendingDay} transparent animationType="fade" onRequestClose={() => {}}>
+      <Modal visible={!!pendingDay} transparent animationType="fade" onRequestClose={() => { }}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <Text style={styles.confirmTitle}>Tu día del {pendingDay?.id} quedó sin cerrar</Text>

@@ -138,9 +138,9 @@ export const styles = StyleSheet.create({
   quantityPanelUnit: { color: colors.muted, fontSize: 13, textTransform: 'uppercase' },
   quantityPanelKcal: { marginLeft: 'auto', color: colors.goldBright, fontSize: 16.5, fontWeight: '700' },
   quantityPanelWarning: { color: colors.danger, fontSize: 13.5, marginTop: 8 },
-  qpAddBtn: { minHeight: 44, marginTop: 12, borderRadius: 8, backgroundColor: colors.gold, alignItems: 'center', justifyContent: 'center' },
+  qpAddBtn: { minHeight: 44, marginTop: 12, borderRadius: 8, backgroundColor: colors.gold, alignItems: 'center', justifyContent: 'center', padding: 12 },
   qpAddBtnDisabled: { backgroundColor: colors.border },
-  qpAddBtnText: { color: colors.bg, fontWeight: '700', fontSize: 15 },
+  qpAddBtnText: { color: colors.bg, fontWeight: '700', fontSize: 15,  },
 
   confirmTitle: { fontSize: 17.5, color: colors.goldBright, fontWeight: '700', marginBottom: 10 },
   confirmBody: { fontSize: 16.5, color: colors.parchment, lineHeight: 20, textAlign: 'center' },
