@@ -13,14 +13,29 @@ export default function RootNavigator() {
   const [checkingOnboarding, setCheckingOnboarding] = useState(true);
   const [onboardingDone, setOnboardingDone] = useState(false);
 
-useEffect(() => {
-  if (user) {
-    isOnboardingCompleted(user.uid).then((done) => {
-      setOnboardingDone(done);
-      setCheckingOnboarding(false);
-    });
-  }
-}, [user]);
+  useEffect(() => {
+    // Sin usuario: reiniciar el estado para que el próximo login no herede el del anterior
+    if (!user) {
+      setOnboardingDone(false);
+      setCheckingOnboarding(true);
+      return;
+    }
+    let cancelled = false;
+    isOnboardingCompleted(user.uid)
+      .then((done) => {
+        if (!cancelled) setOnboardingDone(done);
+      })
+      .catch((e) => {
+        console.warn('isOnboardingCompleted falló', e);
+        if (!cancelled) setOnboardingDone(false);
+      })
+      .finally(() => {
+        if (!cancelled) setCheckingOnboarding(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   if (authLoading || (user && checkingOnboarding)) {
     return (
@@ -37,7 +52,7 @@ useEffect(() => {
       ) : onboardingDone ? (
         <TabNavigator />
       ) : (
-       <OnboardingScreen onComplete={() => setOnboardingDone(true)} />
+        <OnboardingScreen onComplete={() => setOnboardingDone(true)} />
       )}
     </NavigationContainer>
   );
