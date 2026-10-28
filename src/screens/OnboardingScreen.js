@@ -10,6 +10,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../auth/AuthContext';
 import { completeOnboarding } from '../storage/onboarding';
+import { todayId } from '../storage/days';
 import { colors } from '../theme/colors';
 
 const ACTIVITY_LEVELS = [
@@ -97,7 +98,7 @@ export default function OnboardingScreen({ onComplete }) {
       setStep(step + 1);
     } else {
       setSaving(true);
-      await completeOnboarding(user.uid, profile);
+      await completeOnboarding(user.uid, { ...profile, dietStartDate: todayId() });
       setSaving(false);
       onComplete();
     }

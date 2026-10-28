@@ -40,6 +40,7 @@ export default function PerfilScreen() {
   const [profile, setProfile] = useState(null);
   const [weightModalOpen, setWeightModalOpen] = useState(false);
   const [weightInput, setWeightInput] = useState('');
+  const [resetStartOpen, setResetStartOpen] = useState(false);
 
   const [saving, setSaving] = useState(false);
   const [savedToast, setSavedToast] = useState(false);
@@ -106,6 +107,13 @@ export default function PerfilScreen() {
       setWeightLog(user.uid, todayId(), value).catch((e) => console.warn('No se pudo guardar el registro:', e.message));
     }
     setWeightModalOpen(false);
+  };
+
+  const confirmResetStart = () => {
+    const today = todayId();
+    updateLocal({ dietStartDate: today });
+    updateProfileFields(user.uid, { dietStartDate: today }).catch((e) => console.warn('No se pudo reiniciar la fecha de inicio:', e.message));
+    setResetStartOpen(false);
   };
 
   const handleLogout = () => signOut(auth);
@@ -301,6 +309,16 @@ export default function PerfilScreen() {
           </View>
         </View>
 
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>INICIO DE LA DIETA</Text>
+          <Text style={styles.cardHint}>
+            Si pasó mucho tiempo sin usar la app ni hacer dieta, podés empezar de nuevo desde hoy. El Historial mostrará solo desde la nueva fecha; tus datos anteriores no se borran.
+          </Text>
+          <Pressable style={({ pressed }) => [styles.resetStartBtn, pressed && styles.pressedFeedback]} onPress={() => setResetStartOpen(true)}>
+            <Text style={styles.resetStartBtnText}>Reiniciar fecha de inicio</Text>
+          </Pressable>
+        </View>
+
         <Pressable
           style={({ pressed }) => [styles.saveBtn, pressed && styles.pressedFeedback]}
           onPress={handleSaveProfile}
@@ -326,6 +344,23 @@ export default function PerfilScreen() {
           <Text style={styles.logoutBtnText}>Cerrar sesión</Text>
         </Pressable>
       </ScrollView>
+
+      <Modal visible={resetStartOpen} transparent animationType="fade" onRequestClose={() => setResetStartOpen(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>¿Reiniciar fecha de inicio?</Text>
+            <Text style={styles.cardHint}>Hoy pasa a ser el día 1 de tu dieta. El Historial se verá vacío hasta que tengas nuevos registros.</Text>
+            <View style={styles.modalActions}>
+              <Pressable style={styles.modalCancelBtn} onPress={() => setResetStartOpen(false)}>
+                <Text style={styles.modalCancelBtnText}>Cancelar</Text>
+              </Pressable>
+              <Pressable style={styles.modalConfirmBtn} onPress={confirmResetStart}>
+                <Text style={styles.modalConfirmBtnText}>Reiniciar</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <Modal visible={weightModalOpen} transparent animationType="fade" onRequestClose={() => setWeightModalOpen(false)}>
         <View style={styles.modalOverlay}>

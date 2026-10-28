@@ -73,6 +73,9 @@ export const styles = StyleSheet.create({
   goalSummaryValue: { fontSize: 15, color: colors.goldBright, marginTop: 4, fontWeight: '700' },
   goalArrow: { color: colors.muted, fontSize: 14 },
 
+  resetStartBtn: { minHeight: 44, borderRadius: 9, borderWidth: 1, borderColor: colors.gold, alignItems: 'center', justifyContent: 'center' },
+  resetStartBtnText: { color: colors.goldBright, fontSize: 12.5, letterSpacing: 0.5, textTransform: 'uppercase', fontWeight: '700' },
+
   logoutBtn: { minHeight: 48, borderRadius: 9, borderWidth: 1, borderColor: colors.danger, alignItems: 'center', justifyContent: 'center', marginTop: 6 },
   logoutBtnText: { color: colors.danger, fontSize: 13, letterSpacing: 0.5, textTransform: 'uppercase', fontWeight: '700' },
 

@@ -44,6 +44,9 @@ function parseId(id) {
 function fmtDayMonth(d) {
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
+function fmtFullDate(d) {
+  return `${fmtDayMonth(d)}/${d.getFullYear()}`;
+}
 function fmtMonthYear(d) {
   return d.toLocaleDateString('es-AR', { month: 'short', year: '2-digit' });
 }
@@ -136,8 +139,8 @@ export default function HistorialScreen() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState(null);
-  const [dayHistory, setDayHistoryData] = useState([]);
-  const [weightLogs, setWeightLogsData] = useState([]);
+  const [allDayHistory, setDayHistoryData] = useState([]);
+  const [allWeightLogs, setWeightLogsData] = useState([]);
   const [period, setPeriod] = useState(PERIODS[0]);
   const [selectedBar, setSelectedBar] = useState(null); // { label, weight } | null — última barra tocada
 
@@ -161,6 +164,26 @@ export default function HistorialScreen() {
   }, [user.uid]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  // Fecha de inicio de la dieta: la del perfil; si no existe (cuentas anteriores), el registro más antiguo.
+  const dietStart = useMemo(() => {
+    if (profile?.dietStartDate) return profile.dietStartDate;
+    const dates = [...allDayHistory.map((d) => d.date), ...allWeightLogs.map((w) => w.date)];
+    return dates.length ? dates.reduce((min, d) => (d < min ? d : min)) : null;
+  }, [profile, allDayHistory, allWeightLogs]);
+
+  // Todo el Historial se calcula solo desde esa fecha. Los datos anteriores no se borran.
+  const dayHistory = useMemo(
+    () => (dietStart ? allDayHistory.filter((d) => d.date >= dietStart) : allDayHistory),
+    [allDayHistory, dietStart]
+  );
+  const weightLogs = useMemo(
+    () => (dietStart ? allWeightLogs.filter((w) => w.date >= dietStart) : allWeightLogs),
+    [allWeightLogs, dietStart]
+  );
+  const dietDays = dietStart
+    ? Math.max(1, Math.round((parseId(todayId()) - parseId(dietStart)) / 86400000) + 1)
+    : 0;
 
   const dayHistoryMap = useMemo(() => {
     const m = {};
@@ -265,8 +288,6 @@ export default function HistorialScreen() {
   const lineData = chartSeries.map((s) => ({
     value: s.saved ?? 0,
     hideDataPoint: !s.boosted,
-    dataPointColor: colors.boostBlueBright,
-    dataPointRadius: 5,
   }));
 
   const screenWidth = Dimensions.get('window').width;
@@ -367,6 +388,11 @@ export default function HistorialScreen() {
               <Text style={styles.goalRemaining}>
                 {goalRemaining > 0 ? <>Te faltan <Text style={styles.goalRemainingBold}>{goalRemaining.toFixed(1)} kg</Text> para tu meta</> : '¡Alcanzaste tu meta!'}
               </Text>
+              {dietStart && (
+                <Text style={styles.goalStart}>
+                  Inicio de la dieta: <Text style={styles.goalLabelBold}>{fmtFullDate(parseId(dietStart))}</Text> · {dietDays} {dietDays === 1 ? 'día' : 'días'}
+                </Text>
+              )}
             </View>
 
             <View style={styles.chartCard}>
@@ -402,7 +428,9 @@ export default function HistorialScreen() {
                       thickness: 2.5,
                       curved: true,
                       curvature: 0.2,
-                      hideDataPoints: true,
+                      hideDataPoints: false,
+                      dataPointsColor: colors.boostBlueBright,
+                      dataPointsRadius: 5,
                       isSecondary: true,
                     }}
                     secondaryYAxis={{
@@ -509,10 +537,10 @@ export default function HistorialScreen() {
               </Pressable>
             </View>
             <ScrollView style={styles.logListScroll}>
-              {weightLogs.length === 0 ? (
+              {allWeightLogs.length === 0 ? (
                 <Text style={styles.logListEmpty}>No hay registros cargados.</Text>
               ) : (
-                [...weightLogs].reverse().map((log) => (
+                [...allWeightLogs].reverse().map((log) => (
                   <View key={log.date} style={styles.logRow}>
                     <Text style={styles.logRowDate}>{log.date}</Text>
                     {editingLogId === log.date ? (

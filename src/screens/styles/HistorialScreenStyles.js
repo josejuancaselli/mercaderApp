@@ -32,6 +32,7 @@ export const styles = StyleSheet.create({
   goalLabelText: { fontSize: 11.5, color: colors.muted },
   goalLabelBold: { color: colors.parchment, fontWeight: '600' },
   goalRemaining: { textAlign: 'center', marginTop: 10, fontSize: 12.5, color: colors.muted, fontStyle: 'italic' },
+  goalStart: { textAlign: 'center', marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.borderSoft, fontSize: 12, color: colors.muted },
   goalRemainingBold: { color: colors.goldBright, fontStyle: 'normal', fontWeight: '700' },
 
   chartCard: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.borderSoft, borderRadius: 12, padding: 14, alignItems: 'center' },
