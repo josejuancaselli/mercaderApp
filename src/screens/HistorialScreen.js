@@ -70,6 +70,7 @@ function buildDailyRange(days, dayHistoryMap, weightMap) {
       saved: hist ? hist.leftover : null,
       boosted: hist ? hist.exerciseBoostKcal > 0 : false,
       weight: weightMap[id] ?? null,
+      weightLogged: weightMap[id] ?? null, // el peso cargado ese día, sin arrastrar el anterior
     });
   }
   // Peso: si un día no tiene registro propio, arrastra el último conocido (no inventa datos nuevos).
@@ -108,11 +109,18 @@ function buildSeries(period, daily) {
     const last = group[group.length - 1];
     const validSaved = group.map((d) => d.saved).filter((v) => v != null);
     const avgSaved = validSaved.length ? Math.round(validSaved.reduce((a, b) => a + b, 0) / validSaved.length) : null;
+    // Semanal y mensual: promedio de los pesos realmente cargados en el bloque (en el bloque en curso, los días que van).
+    // Diario: el peso de ese día (arrastrando el último conocido si no hay carga).
+    let weight = last.weight;
+    if (period.mode !== 'daily') {
+      const logged = group.map((d) => d.weightLogged).filter((v) => v != null);
+      weight = logged.length ? Math.round((logged.reduce((a, b) => a + b, 0) / logged.length) * 100) / 100 : null;
+    }
     return {
       label: labelFmt(last.dateObj),
       saved: avgSaved,
       boosted: group.some((d) => d.boosted),
-      weight: last.weight,
+      weight,
     };
   });
 }
@@ -220,7 +228,18 @@ export default function HistorialScreen() {
     return buildDailyRange(days, dayHistoryMap, weightMap);
   }, [period, dayHistoryMap, weightMap, totalDays, hasAnyData]);
 
-  const series = useMemo(() => buildSeries(period, daily), [period, daily]);
+  // Modos semanal y mensual: se grafica todo el historial desde el día 1 del mes en que empezó la dieta hasta hoy.
+  // Semanal = bloques fijos de 7 días; mensual = meses calendario. El último bloque es el que está en curso (parcial).
+  // El resumen de abajo sigue usando `daily` (los últimos 30/90 días, o el total).
+  const chartDaily = useMemo(() => {
+    if (period.mode === 'daily' || !dietStart || !hasAnyData) return daily;
+    const start = parseId(dietStart);
+    const anchor = new Date(start.getFullYear(), start.getMonth(), 1);
+    const days = Math.round((parseId(idFor(new Date())) - anchor) / 86400000) + 1;
+    return buildDailyRange(days, dayHistoryMap, weightMap);
+  }, [period, dietStart, hasAnyData, daily, dayHistoryMap, weightMap]);
+
+  const series = useMemo(() => buildSeries(period, chartDaily), [period, chartDaily]);
 
   // Para el gráfico, recorta el tramo inicial sin ningún peso cargado todavía (evita que la línea arranque en 0).
   const chartSeries = useMemo(() => {
@@ -287,7 +306,7 @@ export default function HistorialScreen() {
     return {
       value: Math.max(0, w - axisRange.min),
       label: s.label,
-      frontColor: s.boosted ? colors.boostBlue : colors.gold, // azul = día con ejercicio
+      frontColor: s.boosted && period.mode === 'daily' ? colors.boostBlue : colors.gold, // azul = día con ejercicio (solo 7 y 15 días)
       weightActual: s.weight ?? null,
     };
   });
@@ -328,9 +347,13 @@ export default function HistorialScreen() {
 
   // Ancho útil del gráfico: el real de la tarjeta (medido con onLayout), menos su padding y los dos ejes.
   const chartInnerWidth = Math.max(120, chartCardWidth - 28 - 44 - 50);
-  const useScroll = barData.length > 8;
-  const barWidth = useScroll ? 22 : undefined;
-  const spacing = useScroll ? 18 : undefined;
+  // Si las barras no entran con un mínimo de 40 px por barra, el gráfico scrollea (barras de 22 px, separación de 18).
+  // Si entran, se reparten a lo ancho: se calculan barWidth y spacing a mano para que el total sea justo chartInnerWidth
+  // (no se usa adjustToWidth de la librería: con etiquetas anchas, como los meses, el contenido se pasaba del ancho).
+  const n = barData.length;
+  const useScroll = n * 40 + 16 > chartInnerWidth;
+  const barWidth = useScroll ? 22 : Math.min(30, Math.floor((0.55 * chartInnerWidth) / Math.max(n, 1)));
+  const spacing = useScroll ? 18 : Math.floor((chartInnerWidth - n * barWidth) / (n + 2));
 
   /* ---- Modal: cargar peso de hoy ---- */
   const openWeightModal = () => {
@@ -443,7 +466,7 @@ export default function HistorialScreen() {
                     data={barData}
                     height={220}
                     width={chartInnerWidth}
-                    adjustToWidth={!useScroll}
+                    adjustToWidth={false}
                     scrollable={useScroll}
                     scrollToEnd={useScroll}
                     barWidth={barWidth}
@@ -505,7 +528,9 @@ export default function HistorialScreen() {
               <View style={styles.chartLegend}>
                 <View style={styles.legendItem}><View style={[styles.legendSwatch, { backgroundColor: colors.gold }]} /><Text style={styles.legendText}>Peso</Text></View>
                 <View style={styles.legendItem}><View style={[styles.legendSwatch, styles.legendSwatchLine, { backgroundColor: colors.parchment }]} /><Text style={styles.legendText}>Ahorro diario</Text></View>
-                <View style={styles.legendItem}><View style={[styles.legendSwatch, { backgroundColor: colors.boostBlue }]} /><Text style={styles.legendText}>Día con ejercicio</Text></View>
+                {period.mode === 'daily' && (
+                  <View style={styles.legendItem}><View style={[styles.legendSwatch, { backgroundColor: colors.boostBlue }]} /><Text style={styles.legendText}>Día con ejercicio</Text></View>
+                )}
                 <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: GOAL_MET }]} /><Text style={styles.legendText}>Meta cumplida</Text></View>
                 <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: GOAL_MISSED }]} /><Text style={styles.legendText}>Bajo la meta</Text></View>
                 <View style={styles.legendItem}><Text style={[styles.legendText, { color: '#ffffff', fontWeight: '700' }]}>- - -</Text><Text style={styles.legendText}>Meta de ahorro</Text></View>
