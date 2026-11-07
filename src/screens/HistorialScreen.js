@@ -142,6 +142,7 @@ export default function HistorialScreen() {
   const [allDayHistory, setDayHistoryData] = useState([]);
   const [allWeightLogs, setWeightLogsData] = useState([]);
   const [period, setPeriod] = useState(PERIODS[0]);
+  const [chartCardWidth, setChartCardWidth] = useState(Dimensions.get('window').width - 32);
   const [selectedBar, setSelectedBar] = useState(null); // { label, weight } | null — última barra tocada
 
   const [weightModalOpen, setWeightModalOpen] = useState(false);
@@ -285,13 +286,33 @@ export default function HistorialScreen() {
   });
   const savedValues = chartSeries.map((s) => s.saved).filter((v) => v != null);
   const savingsRange = savingsAxisRange(savedValues);
-  const lineData = chartSeries.map((s) => ({
-    value: s.saved ?? 0,
-    hideDataPoint: !s.boosted,
-  }));
+  /* Línea de ahorro: un punto por cada tramo con registro, unidos con rectas.
+     Los tramos sin registro no llevan punto y la línea los salta: su valor se interpola entre el
+     registro anterior y el siguiente (cae sobre la recta, así que no se nota). Antes del primer
+     registro y después del último no se dibuja nada (startIndex/endIndex). */
+  const savedIdx = chartSeries.reduce((acc, s, i) => (s.saved != null ? [...acc, i] : acc), []);
+  const lineStart = savedIdx.length ? savedIdx[0] : 0;
+  const lineEnd = savedIdx.length ? savedIdx[savedIdx.length - 1] : 0;
+  const lineData = chartSeries.map((s, i) => {
+    let value = s.saved;
+    if (value == null) {
+      const prev = [...savedIdx].reverse().find((j) => j < i);
+      const next = savedIdx.find((j) => j > i);
+      value =
+        prev != null && next != null
+          ? chartSeries[prev].saved + ((chartSeries[next].saved - chartSeries[prev].saved) * (i - prev)) / (next - prev)
+          : 0; // fuera del rango con registros: no se dibuja
+    }
+    return {
+      value,
+      showDataPoint: s.saved != null,
+      dataPointColor: s.boosted ? colors.boostBlueBright : colors.parchment,
+      dataPointRadius: 5,
+    };
+  });
 
-  const screenWidth = Dimensions.get('window').width;
-  const chartInnerWidth = screenWidth - 32 - 28 - 44 - 50; // padding de página + tarjeta + eje izquierdo + eje derecho
+  // Ancho útil del gráfico: el real de la tarjeta (medido con onLayout), menos su padding y los dos ejes.
+  const chartInnerWidth = Math.max(120, chartCardWidth - 28 - 44 - 50);
   const useScroll = barData.length > 8;
   const barWidth = useScroll ? 22 : undefined;
   const spacing = useScroll ? 18 : undefined;
@@ -395,7 +416,7 @@ export default function HistorialScreen() {
               )}
             </View>
 
-            <View style={styles.chartCard}>
+            <View style={styles.chartCard} onLayout={(e) => setChartCardWidth(e.nativeEvent.layout.width)}>
               {barData.length > 0 ? (
                 <>
                   <Text style={styles.barTapHint}>
@@ -406,9 +427,10 @@ export default function HistorialScreen() {
                   <BarChart
                     data={barData}
                     height={220}
-                    width={useScroll ? undefined : chartInnerWidth}
+                    width={chartInnerWidth}
                     adjustToWidth={!useScroll}
                     scrollable={useScroll}
+                    scrollToEnd={useScroll}
                     barWidth={barWidth}
                     spacing={spacing}
                     barBorderRadius={3}
@@ -426,11 +448,10 @@ export default function HistorialScreen() {
                     lineConfig={{
                       color: colors.parchment,
                       thickness: 2.5,
-                      curved: true,
-                      curvature: 0.2,
-                      hideDataPoints: false,
-                      dataPointsColor: colors.boostBlueBright,
-                      dataPointsRadius: 5,
+                      curved: false,
+                      hideDataPoints: true, // los puntos se dibujan uno por uno desde lineData (showDataPoint)
+                      startIndex: lineStart,
+                      endIndex: lineEnd,
                       isSecondary: true,
                     }}
                     secondaryYAxis={{
