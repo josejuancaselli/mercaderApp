@@ -42,6 +42,7 @@ export const styles = StyleSheet.create({
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   legendSwatch: { width: 11, height: 11, borderRadius: 3 },
   legendSwatchLine: { borderRadius: 6 },
+  legendDot: { width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: colors.parchment },
   legendText: { fontSize: 12, color: colors.muted },
 
   statsCard: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.gold, borderRadius: 12, padding: 16 },

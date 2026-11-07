@@ -21,6 +21,10 @@ import { calcMantenimiento } from './helpers/mercaderLogic';
 import { colors } from '../theme/colors';
 import { styles } from './styles/HistorialScreenStyles';
 
+// Colores del ahorro diario respecto de la meta (déficit objetivo del perfil)
+const GOAL_MET = '#4ee26b'; // verde brillante: ahorro igual o sobre la meta
+const GOAL_MISSED = '#ff5a4d'; // rojo brillante: ahorro bajo la meta
+
 const KCAL_PER_KG = 7700;
 
 const PERIODS = [
@@ -283,7 +287,7 @@ export default function HistorialScreen() {
     return {
       value: Math.max(0, w - axisRange.min),
       label: s.label,
-      frontColor: colors.gold,
+      frontColor: s.boosted ? colors.boostBlue : colors.gold, // azul = día con ejercicio
       weightActual: s.weight ?? null,
     };
   });
@@ -296,23 +300,31 @@ export default function HistorialScreen() {
   const savedIdx = chartSeries.reduce((acc, s, i) => (s.saved != null ? [...acc, i] : acc), []);
   const lineStart = savedIdx.length ? savedIdx[0] : 0;
   const lineEnd = savedIdx.length ? savedIdx[savedIdx.length - 1] : 0;
-  const lineData = chartSeries.map((s, i) => {
-    let value = s.saved;
-    if (value == null) {
-      const prev = [...savedIdx].reverse().find((j) => j < i);
-      const next = savedIdx.find((j) => j > i);
-      value =
-        prev != null && next != null
-          ? chartSeries[prev].saved + ((chartSeries[next].saved - chartSeries[prev].saved) * (i - prev)) / (next - prev)
-          : 0; // fuera del rango con registros: no se dibuja
-    }
-    return {
-      value,
-      showDataPoint: s.saved != null,
-      dataPointColor: s.boosted ? colors.boostBlueBright : colors.parchment,
-      dataPointRadius: 5,
-    };
+  const lineValues = chartSeries.map((s, i) => {
+    if (s.saved != null) return s.saved;
+    const prev = [...savedIdx].reverse().find((j) => j < i);
+    const next = savedIdx.find((j) => j > i);
+    return prev != null && next != null
+      ? chartSeries[prev].saved + ((chartSeries[next].saved - chartSeries[prev].saved) * (i - prev)) / (next - prev)
+      : 0; // fuera del rango con registros: no se dibuja
   });
+  // Cada punto son dos círculos superpuestos: lineData pone el borde (color de la línea, radio 7)
+  // y lineData2 el relleno verde/rojo (radio 5). La línea de lineData2 es invisible.
+  const goalKcal = profile?.deficit ?? 300;
+  const lineData = lineValues.map((value, i) => ({
+    value,
+    showDataPoint: chartSeries[i].saved != null,
+    dataPointColor: colors.parchment,
+    dataPointRadius: 7,
+  }));
+  const lineData2 = lineValues.map((value, i) => ({
+    value,
+    showDataPoint: chartSeries[i].saved != null,
+    dataPointColor: chartSeries[i].saved >= goalKcal ? GOAL_MET : GOAL_MISSED,
+    dataPointRadius: 5,
+  }));
+  // La línea de meta se ubica con la escala del eje de peso (izquierdo): se convierte desde la del ahorro.
+  const goalLinePosition = (goalKcal / savingsRange.max) * (axisRange.max - axisRange.min);
 
   // Ancho útil del gráfico: el real de la tarjeta (medido con onLayout), menos su padding y los dos ejes.
   const chartInnerWidth = Math.max(120, chartCardWidth - 28 - 44 - 50);
@@ -457,6 +469,27 @@ export default function HistorialScreen() {
                       endIndex: lineEnd,
                       isSecondary: true,
                     }}
+                    lineData2={lineData2}
+                    lineConfig2={{
+                      color: 'transparent',
+                      thickness: 1,
+                      curved: false,
+                      hideDataPoints: true,
+                      startIndex: lineStart,
+                      endIndex: lineEnd,
+                      isSecondary: true,
+                    }}
+                    showReferenceLine1={goalKcal > 0}
+                    referenceLine1Position={goalLinePosition}
+                    referenceLine1Config={{
+                      color: '#ffffff',
+                      thickness: 1.5,
+                      type: 'dashed',
+                      dashWidth: 6,
+                      dashGap: 5,
+                      width: chartInnerWidth + (spacing ?? 20), // igual que las líneas de guía: el ancho visible, no el del contenido con scroll
+                      zIndex: 2,
+                    }}
                     secondaryYAxis={{
                       maxValue: savingsRange.max,
                       noOfSections: savingsRange.sections,
@@ -472,7 +505,10 @@ export default function HistorialScreen() {
               <View style={styles.chartLegend}>
                 <View style={styles.legendItem}><View style={[styles.legendSwatch, { backgroundColor: colors.gold }]} /><Text style={styles.legendText}>Peso</Text></View>
                 <View style={styles.legendItem}><View style={[styles.legendSwatch, styles.legendSwatchLine, { backgroundColor: colors.parchment }]} /><Text style={styles.legendText}>Ahorro diario</Text></View>
-                <View style={styles.legendItem}><View style={[styles.legendSwatch, styles.legendSwatchLine, { backgroundColor: colors.boostBlueBright }]} /><Text style={styles.legendText}>Día con actividad física</Text></View>
+                <View style={styles.legendItem}><View style={[styles.legendSwatch, { backgroundColor: colors.boostBlue }]} /><Text style={styles.legendText}>Día con ejercicio</Text></View>
+                <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: GOAL_MET }]} /><Text style={styles.legendText}>Meta cumplida</Text></View>
+                <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: GOAL_MISSED }]} /><Text style={styles.legendText}>Bajo la meta</Text></View>
+                <View style={styles.legendItem}><Text style={[styles.legendText, { color: '#ffffff', fontWeight: '700' }]}>- - -</Text><Text style={styles.legendText}>Meta de ahorro</Text></View>
               </View>
             </View>
 
