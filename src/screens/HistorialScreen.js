@@ -30,8 +30,10 @@ const KCAL_PER_KG = 7700;
 const PERIODS = [
   { key: '7', label: '7 días', days: 7, mode: 'daily' },
   { key: '15', label: '15 días', days: 15, mode: 'daily' },
-  { key: '30', label: '30 días', days: 30, mode: 'weekly' },
-  { key: '90', label: '90 días', days: 90, mode: 'weekly' },
+  // En modo 'weekly', `weeks` es cuántas semanas (bloques de 7 días) muestra el gráfico; `days` es el rango del resumen de abajo.
+  { key: '30', label: '30 días', days: 30, mode: 'weekly', weeks: 4 },
+  { key: '90', label: '90 días', days: 90, mode: 'weekly', weeks: 12 },
+  { key: '180', label: '6 meses', days: 180, mode: 'weekly', weeks: 24 },
   { key: 'total', label: 'Total', days: null, mode: 'monthly' },
 ];
 
@@ -228,9 +230,9 @@ export default function HistorialScreen() {
     return buildDailyRange(days, dayHistoryMap, weightMap);
   }, [period, dayHistoryMap, weightMap, totalDays, hasAnyData]);
 
-  // Modos semanal y mensual: se grafica todo el historial desde el día 1 del mes en que empezó la dieta hasta hoy.
-  // Semanal = bloques fijos de 7 días; mensual = meses calendario. El último bloque es el que está en curso (parcial).
-  // El resumen de abajo sigue usando `daily` (los últimos 30/90 días, o el total).
+  // Modos semanal y mensual: se arma el historial desde el día 1 del mes en que empezó la dieta hasta hoy.
+  // Semanal = bloques fijos de 7 días (se muestran los últimos `period.weeks`); mensual = todos los meses calendario.
+  // El último bloque es el que está en curso (parcial). El resumen de abajo usa `daily` (los últimos N días, o el total).
   const chartDaily = useMemo(() => {
     if (period.mode === 'daily' || !dietStart || !hasAnyData) return daily;
     const start = parseId(dietStart);
@@ -239,7 +241,10 @@ export default function HistorialScreen() {
     return buildDailyRange(days, dayHistoryMap, weightMap);
   }, [period, dietStart, hasAnyData, daily, dayHistoryMap, weightMap]);
 
-  const series = useMemo(() => buildSeries(period, chartDaily), [period, chartDaily]);
+  const series = useMemo(() => {
+    const all = buildSeries(period, chartDaily);
+    return period.weeks ? all.slice(-period.weeks) : all;
+  }, [period, chartDaily]);
 
   // Para el gráfico, recorta el tramo inicial sin ningún peso cargado todavía (evita que la línea arranque en 0).
   const chartSeries = useMemo(() => {
