@@ -17,6 +17,7 @@ import { getUserProfile } from '../storage/profile';
 import { getAllDayHistory } from '../storage/dayHistory';
 import { getAllWeightLogs, setWeightLog, deleteWeightLog } from '../storage/weightLogs';
 import { todayId } from '../storage/days';
+import { calcMantenimiento } from './helpers/mercaderLogic';
 import { colors } from '../theme/colors';
 import { styles } from './styles/HistorialScreenStyles';
 
@@ -127,12 +128,14 @@ function weightAxisRange(weights) {
   return { min: axisMin, max: axisMax, step, sections };
 }
 
-/** Rango del eje derecho (calorías ahorradas): redondea a pasos de 200 kcal, siempre con aire arriba. */
-function savingsAxisRange(values) {
-  const max = values.length ? Math.max(...values) : 0;
-  const step = 200;
-  const axisMax = Math.max(step * 2, Math.ceil((max + 1) / step) * step);
-  return { max: axisMax, sections: Math.round(axisMax / step) };
+/** Eje derecho (calorías ahorradas): de 0 hasta el mantenimiento redondeado hacia arriba a múltiplos de 500,
+ *  con una marca cada 500 kcal. Si algún valor lo supera, el eje crece para que la línea no se salga. */
+function savingsAxisRange(maintenance, values) {
+  const step = 500;
+  const base = Number.isFinite(maintenance) ? maintenance : 0;
+  const top = Math.max(base, ...values);
+  const sections = Math.max(1, Math.ceil(top / step));
+  return { max: sections * step, sections };
 }
 
 export default function HistorialScreen() {
@@ -285,7 +288,7 @@ export default function HistorialScreen() {
     };
   });
   const savedValues = chartSeries.map((s) => s.saved).filter((v) => v != null);
-  const savingsRange = savingsAxisRange(savedValues);
+  const savingsRange = savingsAxisRange(profile ? calcMantenimiento(profile) : 0, savedValues);
   /* Línea de ahorro: un punto por cada tramo con registro, unidos con rectas.
      Los tramos sin registro no llevan punto y la línea los salta: su valor se interpola entre el
      registro anterior y el siguiente (cae sobre la recta, así que no se nota). Antes del primer
