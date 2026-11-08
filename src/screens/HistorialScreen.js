@@ -489,7 +489,7 @@ export default function HistorialScreen() {
                     frontColor={colors.gold}
                     yAxisThickness={0}
                     xAxisColor={colors.borderSoft}
-                    rulesColor="rgba(74,60,40,0.25)"
+                    rulesColor="rgba(176,146,92,0.45)"
                     maxValue={axisRange.max - axisRange.min}
                     noOfSections={axisRange.sections}
                     showFractionalValues
