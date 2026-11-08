@@ -42,6 +42,9 @@ export const styles = StyleSheet.create({
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   legendSwatch: { width: 11, height: 11, borderRadius: 3 },
   legendSwatchLine: { borderRadius: 6 },
+  axisTitles: { alignSelf: 'stretch', flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 2, marginTop: 4, marginBottom: 2 },
+  axisTitleLeft: { color: colors.gold, fontSize: 10, fontWeight: '700' },
+  axisTitleRight: { color: colors.parchment, fontSize: 10, fontWeight: '700' },
   legendDot: { width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: colors.parchment },
   legendText: { fontSize: 12, color: colors.muted },
 

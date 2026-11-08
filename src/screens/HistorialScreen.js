@@ -127,19 +127,24 @@ function buildSeries(period, daily) {
   });
 }
 
-/** Rango del eje derecho (peso): siempre deja aire arriba y abajo del rango real de ese período. */
-function weightAxisRange(weights) {
-  if (!weights.length) return { min: 0, max: 1, step: 1, sections: 1 };
-  const step = 0.5;
-  const current = weights[weights.length - 1];
+/** Eje izquierdo (peso). Usa la misma cantidad de divisiones que el eje derecho (`sections`), así cada línea de
+ *  la grilla corresponde a una marca de cada lado. El salto es el más chico entre 0,5 / 1 / 2 / 5 / 10 kg con el que
+ *  entran todos los pesos del período más un salto de margen arriba y otro abajo. Los extremos caen en múltiplos
+ *  del salto (etiquetas redondas) y las divisiones sobrantes se reparten arriba y abajo. */
+function weightAxisRange(weights, sections) {
+  const n = Math.max(2, sections);
+  if (!weights.length) return { min: 0, max: n * 0.5, step: 0.5, sections: n, decimals: 1 };
   const highest = Math.max(...weights);
   const lowest = Math.min(...weights);
-  let axisMax = current + 0.2;
-  while (axisMax - highest < step) axisMax += step;
-  axisMax = Math.round(axisMax * 100) / 100;
-  const sections = Math.max(1, Math.ceil((axisMax - lowest) / step)) + 1;
-  const axisMin = Math.round((axisMax - sections * step) * 100) / 100;
-  return { min: axisMin, max: axisMax, step, sections };
+  const countFor = (st) => Math.ceil(highest / st) - Math.floor(lowest / st) + 2; // divisiones necesarias, con margen
+  const step =
+    [0.5, 1, 2, 5, 10].find((st) => countFor(st) <= n) ??
+    Math.ceil((highest - lowest) / Math.max(1, n - 2) / 5) * 5 + 5;
+  const extra = Math.max(0, n - countFor(step));
+  const below = Math.floor(extra / 2);
+  const min = Math.round((Math.floor(lowest / step) * step - step - below * step) * 100) / 100;
+  const max = Math.round((min + n * step) * 100) / 100;
+  return { min, max, step, sections: n, decimals: step < 1 ? 1 : 0 };
 }
 
 /** Eje derecho (calorías ahorradas): de 0 hasta el mantenimiento redondeado hacia arriba a múltiplos de 500,
@@ -304,8 +309,10 @@ export default function HistorialScreen() {
      El eje de peso se "acerca" restando el piso del rango a cada valor antes de graficar,
      y sumándolo de nuevo solo al mostrar la etiqueta — más confiable que depender de un
      offset de eje de la librería, que no se comportó bien en el eje principal (barras). */
+  const savedValues = chartSeries.map((s) => s.saved).filter((v) => v != null);
+  const savingsRange = savingsAxisRange(profile ? calcMantenimiento(profile) : 0, savedValues);
   const weightValues = chartSeries.map((s) => s.weight).filter((v) => v != null);
-  const axisRange = weightAxisRange(weightValues);
+  const axisRange = weightAxisRange(weightValues, savingsRange.sections); // mismas divisiones que el eje derecho
   const barData = chartSeries.map((s) => {
     const w = s.weight ?? axisRange.min;
     return {
@@ -315,8 +322,6 @@ export default function HistorialScreen() {
       weightActual: s.weight ?? null,
     };
   });
-  const savedValues = chartSeries.map((s) => s.saved).filter((v) => v != null);
-  const savingsRange = savingsAxisRange(profile ? calcMantenimiento(profile) : 0, savedValues);
   /* Línea de ahorro: un punto por cada tramo con registro, unidos con rectas.
      Los tramos sin registro no llevan punto y la línea los salta: su valor se interpola entre el
      registro anterior y el siguiente (cae sobre la recta, así que no se nota). Antes del primer
@@ -467,6 +472,10 @@ export default function HistorialScreen() {
                       ? `${selectedBar.label} · ${selectedBar.weight != null ? selectedBar.weight.toFixed(1) + ' kg' : 'sin registro'}`
                       : 'Tocá una barra para ver el peso exacto'}
                   </Text>
+                  <View style={styles.axisTitles}>
+                    <Text style={styles.axisTitleLeft}>kg</Text>
+                    <Text style={styles.axisTitleRight}>kcal</Text>
+                  </View>
                   <BarChart
                     data={barData}
                     height={220}
@@ -483,7 +492,9 @@ export default function HistorialScreen() {
                     rulesColor="rgba(74,60,40,0.25)"
                     maxValue={axisRange.max - axisRange.min}
                     noOfSections={axisRange.sections}
-                    formatYLabel={(label) => `${(Number(label) + axisRange.min).toFixed(1)} kg`}
+                    showFractionalValues
+                    roundToDigits={axisRange.decimals}
+                    formatYLabel={(label) => (Number(label) + axisRange.min).toFixed(axisRange.decimals)}
                     yAxisTextStyle={{ color: colors.gold, fontSize: 11 }}
                     xAxisLabelTextStyle={{ color: colors.muted, fontSize: 11 }}
                     showLine={hasWeightLine}
@@ -522,6 +533,7 @@ export default function HistorialScreen() {
                       maxValue: savingsRange.max,
                       noOfSections: savingsRange.sections,
                       yAxisSide: yAxisSides.RIGHT,
+                      yAxisLabelWidth: 44,
                       yAxisTextStyle: { color: colors.parchment, fontSize: 11 },
                     }}
                     onPress={(item) => setSelectedBar({ label: item.label, weight: item.weightActual })}
