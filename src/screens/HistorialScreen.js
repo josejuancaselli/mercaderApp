@@ -196,7 +196,7 @@ export default function HistorialScreen() {
   const [allWeightLogs, setWeightLogsData] = useState([]);
   const [period, setPeriod] = useState(PERIODS[0]);
   const [chartCardWidth, setChartCardWidth] = useState(Dimensions.get('window').width - 32);
-  const [selectedBar, setSelectedBar] = useState(null); // { label, weight, saved } | null — última barra tocada
+  const [selectedBar, setSelectedBar] = useState(null); // { label, weight } | null — última barra tocada
   const [legendOpen, setLegendOpen] = useState(false);
 
   const [weightModalOpen, setWeightModalOpen] = useState(false);
@@ -313,8 +313,6 @@ export default function HistorialScreen() {
   const goalPct = totalToLose > 0 ? Math.max(0, Math.min(100, Math.round((lostSoFar / totalToLose) * 100))) : 0;
   const goalRemaining = Math.max(0, Math.round((currentWeightNow - targetWeight) * 10) / 10);
 
-  const bankKcal = profile?.bankKcal || 0;
-
   /* ---- Datos para el gráfico: barras = peso, línea = ahorro de calorías ----
      El eje de peso se "acerca" restando el piso del rango a cada valor antes de graficar,
      y sumándolo de nuevo solo al mostrar la etiqueta — más confiable que depender de un
@@ -330,12 +328,11 @@ export default function HistorialScreen() {
       label: s.label,
       frontColor: s.boosted && period.mode === 'daily' ? colors.boostBlue : colors.gold, // azul = día con ejercicio (solo 7 y 15 días)
       weightActual: s.weight ?? null,
-      savedActual: s.saved ?? null,
     };
   });
   // Lectura sobre el gráfico: la barra tocada o, por defecto, la última.
   const lastBar = barData.length ? barData[barData.length - 1] : null;
-  const readout = selectedBar ?? (lastBar ? { label: lastBar.label, weight: lastBar.weightActual, saved: lastBar.savedActual } : null);
+  const readout = selectedBar ?? (lastBar ? { label: lastBar.label, weight: lastBar.weightActual } : null);
   /* Línea de ahorro: un punto por cada tramo con registro, unidos con rectas.
      Los tramos sin registro no llevan punto y la línea los salta: su valor se interpola entre el
      registro anterior y el siguiente (cae sobre la recta, así que no se nota). Antes del primer
@@ -459,14 +456,6 @@ export default function HistorialScreen() {
                 {goalRemaining > 0 ? <>Faltan <Text style={styles.goalRemainingBold}>{goalRemaining.toFixed(1)} kg</Text></> : '¡Alcanzaste tu meta!'}
                 {dietStart ? ` · Día ${dietDays}` : ''}
               </Text>
-              <View style={styles.bankRow}>
-                <Text style={styles.bankIcon}>🏦</Text>
-                <Text style={styles.bankText}>
-                  <CountUp value={bankKcal} format={(v) => Math.round(v).toLocaleString('es-AR')} style={styles.bankValue} />
-                  <Text style={styles.bankValue}> kcal</Text>
-                  <Text style={styles.statsSub}>  ≈ {(bankKcal / KCAL_PER_KG).toFixed(1)} kg</Text>
-                </Text>
-              </View>
             </View>
 
             <View style={styles.chartCard} onLayout={(e) => setChartCardWidth(e.nativeEvent.layout.width)}>
@@ -486,9 +475,8 @@ export default function HistorialScreen() {
                   <View style={styles.readoutRow}>
                     <Text style={styles.readoutText} numberOfLines={1}>
                       {readout.label} · {readout.weight != null ? `${readout.weight.toFixed(1)} kg` : 'sin peso'}
-                      {readout.saved != null ? ` · ${Math.round(readout.saved).toLocaleString('es-AR')} kcal` : ''}
                     </Text>
-                    <Pressable hitSlop={10} onPress={() => setLegendOpen((v) => !v)}>
+                    <Pressable style={styles.infoWrap} hitSlop={10} onPress={() => setLegendOpen((v) => !v)}>
                       <Text style={[styles.infoBtn, legendOpen && styles.infoBtnOn]}>ⓘ</Text>
                     </Pressable>
                   </View>
@@ -556,7 +544,7 @@ export default function HistorialScreen() {
                       yAxisLabelWidth: 44,
                       yAxisTextStyle: { color: colors.parchment, fontSize: 11 },
                     }}
-                    onPress={(item) => setSelectedBar({ label: item.label, weight: item.weightActual, saved: item.savedActual })}
+                    onPress={(item) => setSelectedBar({ label: item.label, weight: item.weightActual })}
                     isAnimated
                     animationDuration={700}
                   />
@@ -591,6 +579,7 @@ export default function HistorialScreen() {
                   <CountUp key={period.key} value={totalSavedPeriod} format={(v) => Math.round(v).toLocaleString('es-AR')} style={styles.statsValueBlue} />
                   <Text style={styles.summaryUnit}> kcal</Text>
                 </Text>
+                <Text style={styles.summaryEq}>≈ {(totalSavedPeriod / KCAL_PER_KG).toFixed(1)} kg</Text>
               </View>
               <View style={styles.summaryTile}>
                 <Text style={styles.summaryLabel}>PROMEDIO</Text>
