@@ -304,6 +304,10 @@ export default function HistorialScreen() {
       ? Math.round(((weightInitial - weightCurrent) * 1000) / daily.length)
       : 0;
 
+  // Promedio de ahorro según la unidad del gráfico: día (7d/15d), semana (30d/90d/6m), mes (Total).
+  const avgUnit = period.mode === 'monthly' ? 'mes' : period.mode === 'weekly' ? 'semana' : 'día';
+  const avgKcal = avgSavedPerDay * (period.mode === 'monthly' ? 30 : period.mode === 'weekly' ? 7 : 1);
+
   /* ---- Progreso hacia la meta (independiente del período elegido) ---- */
   const startingWeight = weightLogs.length ? weightLogs[0].weight : profile?.weight ?? 0;
   const currentWeightNow = weightLogs.length ? weightLogs[weightLogs.length - 1].weight : profile?.weight ?? 0;
@@ -582,8 +586,11 @@ export default function HistorialScreen() {
                 <Text style={styles.summaryEq}>≈ {(totalSavedPeriod / KCAL_PER_KG).toFixed(1)} kg</Text>
               </View>
               <View style={styles.summaryTile}>
-                <Text style={styles.summaryLabel}>PROMEDIO</Text>
-                <Text style={styles.summaryValue}>{avgSavedPerDay.toLocaleString('es-AR')}<Text style={styles.summaryUnit}>/día</Text></Text>
+                <Text style={styles.summaryLabel}>PROM. / {avgUnit.toUpperCase()}</Text>
+                <Text style={styles.summaryValue} numberOfLines={1}>
+                  {avgKcal.toLocaleString('es-AR')}<Text style={styles.summaryUnit}> kcal</Text>
+                </Text>
+                <Text style={styles.summaryEq}>≈ {(avgKcal / KCAL_PER_KG).toFixed(2)} kg</Text>
               </View>
             </View>
           </>
