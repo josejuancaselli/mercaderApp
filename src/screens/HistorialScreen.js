@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,8 @@ import {
   Modal,
   ActivityIndicator,
   Dimensions,
+  Animated,
+  Easing,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -28,12 +30,12 @@ const GOAL_MISSED = '#ff5a4d'; // rojo brillante: ahorro bajo la meta
 const KCAL_PER_KG = 7700;
 
 const PERIODS = [
-  { key: '7', label: '7 días', days: 7, mode: 'daily' },
-  { key: '15', label: '15 días', days: 15, mode: 'daily' },
+  { key: '7', label: '7d', days: 7, mode: 'daily' },
+  { key: '15', label: '15d', days: 15, mode: 'daily' },
   // En modo 'weekly', `weeks` es cuántas semanas (bloques de 7 días) muestra el gráfico; `days` es el rango del resumen de abajo.
-  { key: '30', label: '30 días', days: 30, mode: 'weekly', weeks: 4 },
-  { key: '90', label: '90 días', days: 90, mode: 'weekly', weeks: 12 },
-  { key: '180', label: '6 meses', days: 180, mode: 'weekly', weeks: 24 },
+  { key: '30', label: '30d', days: 30, mode: 'weekly', weeks: 4 },
+  { key: '90', label: '90d', days: 90, mode: 'weekly', weeks: 12 },
+  { key: '180', label: '6m', days: 180, mode: 'weekly', weeks: 24 },
   { key: 'total', label: 'Total', days: null, mode: 'monthly' },
 ];
 
@@ -157,6 +159,35 @@ function savingsAxisRange(maintenance, values) {
   return { max: sections * step, sections };
 }
 
+const ANIM_MS = 900;
+
+/** Número que cuenta desde 0 hasta `value` al montarse (y cada vez que `value` cambia). Aísla el re-render: solo se redibuja este Text. */
+function CountUp({ value, format, style, duration = ANIM_MS }) {
+  const [shown, setShown] = useState(0);
+  useEffect(() => {
+    const a = new Animated.Value(0);
+    const id = a.addListener(({ value: v }) => setShown(v));
+    Animated.timing(a, { toValue: value, duration, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
+    return () => { a.removeListener(id); a.stopAnimation(); };
+  }, [value, duration]);
+  return <Text style={style}>{format(shown)}</Text>;
+}
+
+/** Barra de progreso: se llena de 0 a `pct` con el mismo tiempo y curva que el número del porcentaje. */
+function GoalBar({ pct }) {
+  const anim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    anim.setValue(0);
+    Animated.timing(anim, { toValue: pct, duration: ANIM_MS, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
+  }, [pct, anim]);
+  const width = anim.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] });
+  return (
+    <View style={styles.goalTrack}>
+      <Animated.View style={[styles.goalFill, { width }]} />
+    </View>
+  );
+}
+
 export default function HistorialScreen() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -165,7 +196,8 @@ export default function HistorialScreen() {
   const [allWeightLogs, setWeightLogsData] = useState([]);
   const [period, setPeriod] = useState(PERIODS[0]);
   const [chartCardWidth, setChartCardWidth] = useState(Dimensions.get('window').width - 32);
-  const [selectedBar, setSelectedBar] = useState(null); // { label, weight } | null — última barra tocada
+  const [selectedBar, setSelectedBar] = useState(null); // { label, weight, saved } | null — última barra tocada
+  const [legendOpen, setLegendOpen] = useState(false);
 
   const [weightModalOpen, setWeightModalOpen] = useState(false);
   const [weightInput, setWeightInput] = useState('');
@@ -272,28 +304,6 @@ export default function HistorialScreen() {
       ? Math.round(((weightInitial - weightCurrent) * 1000) / daily.length)
       : 0;
 
-  // El promedio se expresa en la misma unidad que agrupa el gráfico de este período:
-  // por semana en 30/90 días (mode 'weekly'), por mes en Total (mode 'monthly'), por día en 7/15.
-  let avgWeightLabel;
-  if (period.mode === 'monthly') {
-    const avgKgPerMonth = Math.round((avgWeightGramsPerDay * 30) / 10) / 100;
-    avgWeightLabel =
-      avgKgPerMonth > 0 ? `Promedio: -${avgKgPerMonth.toFixed(2)} kg/mes`
-      : avgKgPerMonth < 0 ? `Promedio: +${Math.abs(avgKgPerMonth).toFixed(2)} kg/mes`
-      : 'Promedio: sin cambios/mes';
-  } else if (period.mode === 'weekly') {
-    const avgGramsPerWeek = Math.round(avgWeightGramsPerDay * 7);
-    avgWeightLabel =
-      avgGramsPerWeek > 0 ? `Promedio: -${avgGramsPerWeek} g/semana`
-      : avgGramsPerWeek < 0 ? `Promedio: +${Math.abs(avgGramsPerWeek)} g/semana`
-      : 'Promedio: sin cambios/semana';
-  } else {
-    avgWeightLabel =
-      avgWeightGramsPerDay > 0 ? `Promedio: -${avgWeightGramsPerDay} g/día`
-      : avgWeightGramsPerDay < 0 ? `Promedio: +${Math.abs(avgWeightGramsPerDay)} g/día`
-      : 'Promedio: sin cambios/día';
-  }
-
   /* ---- Progreso hacia la meta (independiente del período elegido) ---- */
   const startingWeight = weightLogs.length ? weightLogs[0].weight : profile?.weight ?? 0;
   const currentWeightNow = weightLogs.length ? weightLogs[weightLogs.length - 1].weight : profile?.weight ?? 0;
@@ -320,8 +330,12 @@ export default function HistorialScreen() {
       label: s.label,
       frontColor: s.boosted && period.mode === 'daily' ? colors.boostBlue : colors.gold, // azul = día con ejercicio (solo 7 y 15 días)
       weightActual: s.weight ?? null,
+      savedActual: s.saved ?? null,
     };
   });
+  // Lectura sobre el gráfico: la barra tocada o, por defecto, la última.
+  const lastBar = barData.length ? barData[barData.length - 1] : null;
+  const readout = selectedBar ?? (lastBar ? { label: lastBar.label, weight: lastBar.weightActual, saved: lastBar.savedActual } : null);
   /* Línea de ahorro: un punto por cada tramo con registro, unidos con rectas.
      Los tramos sin registro no llevan punto y la línea los salta: su valor se interpola entre el
      registro anterior y el siguiente (cae sobre la recta, así que no se nota). Antes del primer
@@ -430,48 +444,54 @@ export default function HistorialScreen() {
           </View>
         ) : (
           <>
-            <View style={styles.periodTabs}>
-              {PERIODS.map((p) => (
-                <Pressable
-                  key={p.key}
-                  style={[styles.periodTab, period.key === p.key && styles.periodTabActive]}
-                  onPress={() => { setPeriod(p); setSelectedBar(null); }}
-                >
-                  <Text style={[styles.periodTabText, period.key === p.key && styles.periodTabTextActive]}>{p.label}</Text>
-                </Pressable>
-              ))}
-            </View>
-
             <View style={styles.goalCard}>
               <View style={styles.goalHeader}>
                 <Text style={styles.goalTitle}>PROGRESO HACIA TU META</Text>
-                <Text style={styles.goalPct}>{goalPct}%</Text>
+                <CountUp value={goalPct} format={(v) => `${Math.round(v)}%`} style={styles.goalPct} />
               </View>
-              <View style={styles.goalTrack}>
-                <View style={[styles.goalFill, { width: `${goalPct}%` }]} />
-              </View>
+              <GoalBar pct={goalPct} />
               <View style={styles.goalLabels}>
-                <Text style={styles.goalLabelText}>Inicio: <Text style={styles.goalLabelBold}>{startingWeight.toFixed(1)} kg</Text></Text>
-                <Text style={styles.goalLabelText}>Meta: <Text style={styles.goalLabelBold}>{targetWeight.toFixed(1)} kg</Text></Text>
+                <Text style={styles.goalLabelText}>Inicio <Text style={styles.goalLabelBold}>{startingWeight.toFixed(1)}</Text></Text>
+                <Text style={styles.goalLabelText}>Hoy <Text style={styles.goalLabelBold}>{currentWeightNow.toFixed(1)}</Text></Text>
+                <Text style={styles.goalLabelText}>Meta <Text style={styles.goalLabelBold}>{targetWeight.toFixed(1)} kg</Text></Text>
               </View>
               <Text style={styles.goalRemaining}>
-                {goalRemaining > 0 ? <>Te faltan <Text style={styles.goalRemainingBold}>{goalRemaining.toFixed(1)} kg</Text> para tu meta</> : '¡Alcanzaste tu meta!'}
+                {goalRemaining > 0 ? <>Faltan <Text style={styles.goalRemainingBold}>{goalRemaining.toFixed(1)} kg</Text></> : '¡Alcanzaste tu meta!'}
+                {dietStart ? ` · Día ${dietDays}` : ''}
               </Text>
-              {dietStart && (
-                <Text style={styles.goalStart}>
-                  Inicio de la dieta: <Text style={styles.goalLabelBold}>{fmtFullDate(parseId(dietStart))}</Text> · {dietDays} {dietDays === 1 ? 'día' : 'días'}
+              <View style={styles.bankRow}>
+                <Text style={styles.bankIcon}>🏦</Text>
+                <Text style={styles.bankText}>
+                  <CountUp value={bankKcal} format={(v) => Math.round(v).toLocaleString('es-AR')} style={styles.bankValue} />
+                  <Text style={styles.bankValue}> kcal</Text>
+                  <Text style={styles.statsSub}>  ≈ {(bankKcal / KCAL_PER_KG).toFixed(1)} kg</Text>
                 </Text>
-              )}
+              </View>
             </View>
 
             <View style={styles.chartCard} onLayout={(e) => setChartCardWidth(e.nativeEvent.layout.width)}>
+              <View style={styles.periodTabs}>
+                {PERIODS.map((p) => (
+                  <Pressable
+                    key={p.key}
+                    style={[styles.periodTab, period.key === p.key && styles.periodTabActive]}
+                    onPress={() => { setPeriod(p); setSelectedBar(null); }}
+                  >
+                    <Text style={[styles.periodTabText, period.key === p.key && styles.periodTabTextActive]}>{p.label}</Text>
+                  </Pressable>
+                ))}
+              </View>
               {barData.length > 0 ? (
                 <>
-                  <Text style={styles.barTapHint}>
-                    {selectedBar
-                      ? `${selectedBar.label} · ${selectedBar.weight != null ? selectedBar.weight.toFixed(1) + ' kg' : 'sin registro'}`
-                      : 'Tocá una barra para ver el peso exacto'}
-                  </Text>
+                  <View style={styles.readoutRow}>
+                    <Text style={styles.readoutText} numberOfLines={1}>
+                      {readout.label} · {readout.weight != null ? `${readout.weight.toFixed(1)} kg` : 'sin peso'}
+                      {readout.saved != null ? ` · ${Math.round(readout.saved).toLocaleString('es-AR')} kcal` : ''}
+                    </Text>
+                    <Pressable hitSlop={10} onPress={() => setLegendOpen((v) => !v)}>
+                      <Text style={[styles.infoBtn, legendOpen && styles.infoBtnOn]}>ⓘ</Text>
+                    </Pressable>
+                  </View>
                   <View style={styles.axisTitles}>
                     <Text style={styles.axisTitleLeft}>kg</Text>
                     <Text style={styles.axisTitleRight}>kcal</Text>
@@ -536,12 +556,15 @@ export default function HistorialScreen() {
                       yAxisLabelWidth: 44,
                       yAxisTextStyle: { color: colors.parchment, fontSize: 11 },
                     }}
-                    onPress={(item) => setSelectedBar({ label: item.label, weight: item.weightActual })}
+                    onPress={(item) => setSelectedBar({ label: item.label, weight: item.weightActual, saved: item.savedActual })}
+                    isAnimated
+                    animationDuration={700}
                   />
                 </>
               ) : (
                 <Text style={styles.chartEmpty}>Sin datos suficientes para graficar todavía.</Text>
               )}
+              {legendOpen && (
               <View style={styles.chartLegend}>
                 <View style={styles.legendItem}><View style={[styles.legendSwatch, { backgroundColor: colors.gold }]} /><Text style={styles.legendText}>Peso</Text></View>
                 <View style={styles.legendItem}><View style={[styles.legendSwatch, styles.legendSwatchLine, { backgroundColor: colors.parchment }]} /><Text style={styles.legendText}>Ahorro diario</Text></View>
@@ -552,41 +575,26 @@ export default function HistorialScreen() {
                 <View style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: GOAL_MISSED }]} /><Text style={styles.legendText}>Bajo la meta</Text></View>
                 <View style={styles.legendItem}><Text style={[styles.legendText, { color: '#ffffff', fontWeight: '700' }]}>- - -</Text><Text style={styles.legendText}>Meta de ahorro</Text></View>
               </View>
+              )}
             </View>
 
-            <View style={styles.statsCard}>
-              <View style={styles.statsTop}>
-                <Text style={styles.bankIcon}>🏦</Text>
-                <View style={styles.statsTopInfo}>
-                  <Text style={styles.statsLabel}>AHORRO TOTAL DESDE QUE EMPEZASTE</Text>
-                  <Text style={styles.statsAlltimeValue}>
-                    {bankKcal.toLocaleString('es-AR')} kcal <Text style={styles.statsSub}>({(bankKcal / KCAL_PER_KG).toFixed(2)} kg)</Text>
-                  </Text>
-                </View>
+            <View style={styles.summaryRow}>
+              <View style={styles.summaryTile}>
+                <Text style={styles.summaryLabel}>PESO</Text>
+                <Text style={[styles.summaryValue, wDelta > 0 && styles.statsDeltaUp]}>
+                  {wDelta <= 0 ? wDelta.toFixed(1) : `+${wDelta.toFixed(1)}`} kg
+                </Text>
               </View>
-
-              <View style={styles.statsDivider} />
-
-              <View style={styles.statsRow}>
-                <View style={styles.statsCol}>
-                  <Text style={styles.statsLabel}>PESO</Text>
-                  <View style={styles.weightCompareRow}>
-                    <Text style={styles.weightInitialInline}>{weightInitial != null ? weightInitial.toFixed(1) : '--'} kg</Text>
-                    <Text style={styles.weightCompareArrow}>→</Text>
-                    <Text style={styles.weightCurrentInline}>{weightCurrent != null ? weightCurrent.toFixed(1) : '--'} kg</Text>
-                  </View>
-                  <Text style={[styles.statsDeltaBig, wDelta > 0 && styles.statsDeltaUp]}>
-                    {wDelta <= 0 ? wDelta : `+${wDelta}`} kg en el período
-                  </Text>
-                  <Text style={styles.statsAvgBig}>{avgWeightLabel}</Text>
-                </View>
-                <View style={styles.statsColDivider} />
-                <View style={styles.statsCol}>
-                  <Text style={styles.statsLabel}>AHORRADO EN EL PERÍODO</Text>
-                  <Text style={[styles.statsValue, styles.statsValueBlue]}>{totalSavedPeriod.toLocaleString('es-AR')} kcal</Text>
-                  <Text style={styles.statsDelta}>≈ {(totalSavedPeriod / KCAL_PER_KG).toFixed(2)} kg</Text>
-                  <Text style={styles.statsAvg}>Promedio: {avgSavedPerDay.toLocaleString('es-AR')} kcal/día</Text>
-                </View>
+              <View style={styles.summaryTile}>
+                <Text style={styles.summaryLabel}>AHORRO</Text>
+                <Text style={[styles.summaryValue, styles.statsValueBlue]} numberOfLines={1}>
+                  <CountUp key={period.key} value={totalSavedPeriod} format={(v) => Math.round(v).toLocaleString('es-AR')} style={styles.statsValueBlue} />
+                  <Text style={styles.summaryUnit}> kcal</Text>
+                </Text>
+              </View>
+              <View style={styles.summaryTile}>
+                <Text style={styles.summaryLabel}>PROMEDIO</Text>
+                <Text style={styles.summaryValue}>{avgSavedPerDay.toLocaleString('es-AR')}<Text style={styles.summaryUnit}>/día</Text></Text>
               </View>
             </View>
           </>
